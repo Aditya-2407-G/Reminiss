@@ -30,7 +30,7 @@ const createEntry = asyncHandler(async (req, res) => {
   })
 
   if (existingEntry) {
-    throw new ApiError(400, "You have already created an entry for this batch. Please update the existing entry");
+    throw new ApiError(400, "You have already created an entry. Multiple entries are not allowed");
   }
 
   const imageLocalPath = req.files.image.tempFilePath;
@@ -171,81 +171,79 @@ const getUserEntries = asyncHandler(async (req, res) => {
     );
 });
 
-const updateEntry = asyncHandler(async (req, res) => {
-  const { entryId } = req.params;
-  const { message, tags } = req.body;
+// const updateEntry = asyncHandler(async (req, res) => {
+//   const { entryId } = req.params;
+//   const { message, tags } = req.body;
   
-  if (!entryId) {
-    throw new ApiError(400, "Entry ID is required");
-  }
+//   if (!entryId) {
+//     throw new ApiError(400, "Entry ID is required");
+//   }
 
-  if (!message && !tags) {
-    throw new ApiError(400, "At least one field (message or tags) is required to update");
-  }
+//   if (!message && !tags) {
+//     throw new ApiError(400, "At least one field (message or tags) is required to update");
+//   }
 
-  const entry = await Entry.findById(entryId);
+//   const entry = await Entry.findById(entryId);
 
-  if (!entry) {
-    throw new ApiError(404, "Entry not found");
-  }
+//   if (!entry) {
+//     throw new ApiError(404, "Entry not found");
+//   }
 
-  // Check if the entry belongs to the user
-  if (entry.user.toString() !== req.user._id.toString()) {
-    throw new ApiError(403, "You are not authorized to update this entry");
-  }
+//   // Check if the entry belongs to the user
+//   if (entry.user.toString() !== req.user._id.toString()) {
+//     throw new ApiError(403, "You are not authorized to update this entry");
+//   }
 
-  // Parse tags safely
-  let parsedTags = entry.tags;
-  if (tags) {
-    try {
-      parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
-    } catch (error) {
-      throw new ApiError(400, "Invalid tags format");
-    }
-  }
+//   // Parse tags safely
+//   let parsedTags = entry.tags;
+//   if (tags) {
+//     try {
+//       parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+//     } catch (error) {
+//       throw new ApiError(400, "Invalid tags format");
+//     }
+//   }
 
-  const updatedEntry = await Entry.findByIdAndUpdate(
-    entryId,
-    {
-      $set: {
-        message: message || entry.message,
-        tags: parsedTags,
-      },
-    },
-    { new: true }
-  );
+//   const updatedEntry = await Entry.findByIdAndUpdate(
+//     entryId,
+//     {
+//       $set: {
+//         message: message || entry.message,
+//         tags: parsedTags,
+//       },
+//     },
+//     { new: true }
+//   );
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, updatedEntry, "Entry updated successfully"));
-});
+//   return res
+//     .status(200)
+//     .json(new ApiResponse(200, updatedEntry, "Entry updated successfully"));
+// });
 
-const deleteEntry = asyncHandler(async (req, res) => {
-  const { entryId } = req.params;
+// const deleteEntry = asyncHandler(async (req, res) => {
+//   const { entryId } = req.params;
 
-  const entry = await Entry.findById(entryId);
+//   const entry = await Entry.findById(entryId);
 
-  if (!entry) {
-    throw new ApiError(404, "Entry not found");
-  }
+//   if (!entry) {
+//     throw new ApiError(404, "Entry not found");
+//   }
 
-  // Check if the entry belongs to the user
-  if (entry.user.toString() !== req.user._id.toString()) {
-    throw new ApiError(403, "You are not authorized to delete this entry");
-  }
+//   // Check if the entry belongs to the user
+//   if (entry.user.toString() !== req.user._id.toString()) {
+//     throw new ApiError(403, "You are not authorized to delete this entry");
+//   }
 
-  await Entry.findByIdAndDelete(entryId);
+//   await Entry.findByIdAndDelete(entryId);
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, {}, "Entry deleted successfully"));
-});
+//   return res
+//     .status(200)
+//     .json(new ApiResponse(200, {}, "Entry deleted successfully"));
+// });
 
 export {
   createEntry,
   getAllEntries,
   getUserEntries,
-  updateEntry,
-  deleteEntry,
   getBatchEntries,
 }; 
