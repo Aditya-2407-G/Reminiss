@@ -37,8 +37,12 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
     
-    // If the error is a 401 (Unauthorized)
-    if (error.response?.status === 401) {
+    // Check if this is an auth-related endpoint
+    const isAuthEndpoint = originalRequest.url?.includes('/login') || 
+                          originalRequest.url?.includes('/register');
+    
+    // If the error is a 401 (Unauthorized) and NOT an auth endpoint
+    if (error.response?.status === 401 && !isAuthEndpoint) {
       originalRequest._isRetry = true;
       
       try {
@@ -64,10 +68,10 @@ api.interceptors.response.use(
         console.error('Token refresh failed:', refreshError);
         
         // Only redirect to login if not already on login or register page
-        if (window.location.pathname !== '/login' && 
+        if (window.location.pathname !== '/' && 
             window.location.pathname !== '/register') {
           console.log('Redirecting to login...');
-          window.location.href = '/login';
+          window.location.href = '/';
         }
         return Promise.reject(refreshError);
       }

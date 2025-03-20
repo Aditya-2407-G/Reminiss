@@ -1,34 +1,23 @@
-/** @type {import('tailwindcss').Config} */
-export default {
-  content: ["./app/**/*.{js,jsx,ts,tsx}"],
-  safelist: [
-    'border',
-    'border-border',
-    'bg-white',
-    'bg-gray-950',
-    'dark:bg-gray-950',
-    'bg-background',
-    'bg-background/95',
-    'text-foreground',
-    'text-primary',
-    'text-primary-foreground',
-    'text-destructive',
-    'text-muted-foreground',
-    'border-input',
-    'bg-primary',
-    'bg-destructive',
-    'bg-secondary',
-    'bg-muted',
-    'bg-accent',
-    'rounded-md',
-    'flex',
-    'items-center',
-    'justify-center',
-    'min-h-screen',
-    'container',
-    'mx-auto'
+import type { Config } from "tailwindcss"
+
+const config = {
+  darkMode: ["class"],
+  content: [
+    "./pages/**/*.{ts,tsx}",
+    "./components/**/*.{ts,tsx}",
+    "./app/**/*.{ts,tsx}",
+    "./src/**/*.{ts,tsx}",
+    "*.{js,ts,jsx,tsx,mdx}",
   ],
+  prefix: "",
   theme: {
+    container: {
+      center: true,
+      padding: "2rem",
+      screens: {
+        "2xl": "1400px",
+      },
+    },
     extend: {
       colors: {
         border: "hsl(var(--border))",
@@ -36,10 +25,6 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
-        white: "#ffffff",
-        gray: {
-          950: "#0a0a0a"
-        },
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -69,9 +54,6 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
       },
-      borderColor: {
-        DEFAULT: "hsl(var(--border))"
-      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
@@ -79,12 +61,12 @@ export default {
       },
       keyframes: {
         "accordion-down": {
-          from: { height: 0 },
+          from: { height: "0" },
           to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
           from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: 0 },
+          to: { height: "0" },
         },
       },
       animation: {
@@ -94,4 +76,7 @@ export default {
     },
   },
   plugins: [require("tailwindcss-animate")],
-} 
+} satisfies Config
+
+export default config
+

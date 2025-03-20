@@ -11,6 +11,7 @@ import {
 import { Button } from "../components/ui/button";
 import api from "../lib/api";
 import { Spinner } from "../components/ui/spinner";
+import { ThemeToggle } from "~/components/ui/theme-toggle";
 
 export default function Dashboard() {
     const { user, isAuthenticated, isLoading, logout } = useAuth();
@@ -101,6 +102,7 @@ export default function Dashboard() {
                     <div className="flex items-center gap-2">
                         <h1 className="text-xl font-bold">Reminiss</h1>
                     </div>
+                    <ThemeToggle/>
                     <div className="flex items-center gap-4">
                         {user && (
                             <div className="text-sm">
