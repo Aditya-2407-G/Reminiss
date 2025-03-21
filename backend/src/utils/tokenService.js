@@ -58,18 +58,13 @@ const verifyRefreshToken = async (token) => {
 
 // Invalidate a refresh token
 const invalidateRefreshToken = async (token) => {
-  await Token.updateOne(
-    { token },
-    { isValid: false }
-  );
+  await Token.deleteOne({ token });
 };
+
 
 // Invalidate all refresh tokens for a user
 const invalidateAllUserTokens = async (userId, userModel) => {
-  await Token.updateMany(
-    { userId, userModel },
-    { isValid: false }
-  );
+  await Token.deleteMany({ userId, userModel });
 };
 
 export {
