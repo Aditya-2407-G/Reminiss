@@ -10,6 +10,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowRight, LogIn } from 'lucide-react';
+import { Header } from '~/components/layout/Header';
 
 // Define the validation schema with Zod
 const loginSchema = z.object({
@@ -75,25 +76,16 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-br from-white via-violet-50/30 to-background dark:from-violet-950/20 dark:via-background dark:to-background">
-      <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur-md dark:bg-background/60 dark:border-border/40">
-        <div className="container max-w-6xl px-6 mx-auto flex h-20 items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-600 via-indigo-500 to-purple-500">
-              Reminiss
-            </h1>
-          </Link>
-        </div>
-      </header>
-
+    <div className="flex min-h-screen flex-col bg-gradient-to-br from-violet-50 via-slate-50 to-background dark:from-violet-950/20 dark:via-background dark:to-background">
+      <Header showAuthButtons={false} />
       <div className="flex-1 flex items-center justify-center px-4 py-12 relative">
         <div className="absolute top-0 left-0 w-full h-full">
           <div className="absolute top-10 right-10 w-72 h-72 bg-purple-400/30 dark:bg-purple-700/20 rounded-full blur-3xl"></div>
           <div className="absolute bottom-10 left-10 w-72 h-72 bg-indigo-400/20 dark:bg-indigo-700/20 rounded-full blur-3xl"></div>
         </div>
-
+        
         <div className="w-full max-w-md relative z-10">
-          <Card className="border-none overflow-hidden bg-gradient-to-br from-background to-violet-50/50 dark:from-background dark:to-violet-950/20 hover:shadow-md transition-all">
+          <Card className="border-none shadow-sm overflow-hidden bg-gradient-to-br from-background to-violet-50/50 dark:from-background dark:to-violet-950/20 hover:shadow-md transition-all">
             <CardHeader className="space-y-1 border-b border-violet-100 dark:border-violet-900/50">
               <div className="flex items-center gap-2 mb-2">
                 <div className="p-2 rounded-lg bg-violet-50 dark:bg-violet-900/20">

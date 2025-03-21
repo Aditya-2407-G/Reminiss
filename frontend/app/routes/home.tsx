@@ -37,6 +37,7 @@ import {
     CarouselNext,
     CarouselPrevious,
 } from "~/components/ui/carousel";
+import { Header } from "~/components/layout/Header";
 
 export default function Home() {
     const { isAuthenticated, isLoading } = useAuth();
@@ -57,8 +58,8 @@ export default function Home() {
     }
 
     return (
-        <div className="flex min-h-screen flex-col bg-gradient-to-br from-white via-violet-50/30 to-background dark:from-violet-950/20 dark:via-background dark:to-background">
-            <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur-md dark:bg-background/60 dark:border-border/40">
+        <div className="flex min-h-screen flex-col bg-gradient-to-br from-violet-50 via-slate-50 to-background dark:from-violet-950/20 dark:via-background dark:to-background">
+            {/* <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur-md dark:bg-background/60 dark:border-border/40">
                 <div className="container max-w-6xl px-6 mx-auto flex h-20 items-center justify-between">
                     <div className="flex items-center gap-2">
                         <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-600 via-indigo-500 to-purple-500">
@@ -131,7 +132,8 @@ export default function Home() {
                         </div>
                     </div>
                 </div>
-            </header>
+            </header> */}
+            <Header />
 
             <main className="flex-1">
                 {/* Hero Section */}
