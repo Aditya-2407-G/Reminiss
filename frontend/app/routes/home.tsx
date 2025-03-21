@@ -58,89 +58,18 @@ export default function Home() {
     }
 
     return (
-        <div className="flex min-h-screen flex-col bg-gradient-to-br from-violet-50 via-slate-50 to-background dark:from-violet-950/20 dark:via-background dark:to-background">
-            {/* <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur-md dark:bg-background/60 dark:border-border/40">
-                <div className="container max-w-6xl px-6 mx-auto flex h-20 items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-600 via-indigo-500 to-purple-500">
-                            Reminiss
-                        </h1>
-                    </div>
+<div className="flex min-h-screen flex-col bg-gradient-to-br from-violet-200 via-indigo-100 to-background dark:from-violet-950/20 dark:via-background dark:to-background">
 
-                    <div className="flex gap-6 mx-4 items-center">
-                        <nav className="hidden md:flex gap-6">
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Link
-                                            to="#"
-                                            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                                        >
-                                            Features
-                                        </Link>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        Explore our amazing features
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
 
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Link
-                                            to="#"
-                                            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                                        >
-                                            About
-                                        </Link>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        Learn about our story
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-                        </nav>
-
-                        <ThemeToggle />
-
-                        <div className="flex gap-3">
-                            <Link
-                                to="/login"
-                                className={cn(
-                                    buttonVariants({
-                                        variant: "ghost",
-                                        size: "sm",
-                                    }),
-                                    "hover:bg-violet-500/10 hover:text-violet-500 dark:hover:text-violet-400"
-                                )}
-                            >
-                                Login
-                            </Link>
-                            <Link
-                                to="/register"
-                                className={cn(
-                                    buttonVariants({ size: "sm" }),
-                                    "relative group overflow-hidden"
-                                )}
-                            >
-                                <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-violet-600 to-indigo-500 group-hover:from-violet-500 group-hover:to-indigo-400"></span>
-                                <span className="relative text-white">
-                                    Register
-                                </span>
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            </header> */}
             <Header />
 
             <main className="flex-1">
                 {/* Hero Section */}
                 <section className="py-20 md:py-28 relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-full">
-                        <div className="absolute top-10 right-10 w-72 h-72 bg-purple-400/30 dark:bg-purple-700/20 rounded-full blur-3xl"></div>
-                        <div className="absolute bottom-10 left-10 w-72 h-72 bg-indigo-400/20 dark:bg-indigo-700/20 rounded-full blur-3xl"></div>
+                    <div className="absolute top-10 right-10 w-72 h-72 bg-purple-400/40 dark:bg-purple-700/20 rounded-full blur-3xl"></div>
+<div className="absolute bottom-10 left-10 w-72 h-72 bg-indigo-400/40 dark:bg-indigo-700/20 rounded-full blur-3xl"></div>
+
                     </div>
 
                     <div className="container max-w-6xl px-6 mx-auto flex flex-col md:flex-row items-center gap-12">
@@ -296,7 +225,8 @@ export default function Home() {
 
                 {/* CTA Section */}
                 <section className="py-16 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-[conic-gradient(at_top_right,_var(--tw-gradient-stops))] from-violet-200/40 via-background to-background dark:from-violet-900/20 dark:via-background dark:to-background -z-10"></div>
+                <div className="absolute inset-0 bg-[conic-gradient(at_top_right,_var(--tw-gradient-stops))] from-violet-300/50 via-indigo-200/40 to-background dark:from-violet-900/20 dark:via-background dark:to-background -z-10"></div>
+
 
                     <div className="container max-w-6xl px-6 mx-auto">
                         <Card className="border-none overflow-hidden bg-gradient-to-br from-violet-500/5 to-indigo-500/5 dark:from-violet-900/10 dark:to-indigo-900/10">
@@ -341,7 +271,8 @@ export default function Home() {
                 </section>
             </main>
 
-            <footer className="border-t py-12 bg-gradient-to-b from-muted/30 to-muted/50 dark:from-muted/10 dark:to-muted/20 dark:border-border/40">
+            <footer className="border-t py-12 bg-gradient-to-b from-violet-100 to-indigo-100/70 dark:from-muted/10 dark:to-muted/20 dark:border-border/40">
+
                 <div className="container max-w-6xl px-6 mx-auto">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
                         <div>

@@ -93,18 +93,20 @@ export default function Register() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-br from-violet-50 via-slate-50 to-background dark:from-violet-950/20 dark:via-background dark:to-background">
+<div className="flex min-h-screen flex-col bg-gradient-to-br from-violet-200 via-indigo-100 to-background dark:from-violet-950/20 dark:via-background dark:to-background">
+
       <Header showAuthButtons={false}/>
 
       <div className="flex-1 flex items-center justify-center px-4 py-12 relative">
         <div className="absolute top-0 left-0 w-full h-full">
-          <div className="absolute top-10 right-10 w-72 h-72 bg-purple-400/30 dark:bg-purple-700/20 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-10 left-10 w-72 h-72 bg-indigo-400/20 dark:bg-indigo-700/20 rounded-full blur-3xl"></div>
+        <div className="absolute top-10 right-10 w-72 h-72 bg-purple-400/40 dark:bg-purple-700/20 rounded-full blur-3xl"></div>
+<div className="absolute bottom-10 left-10 w-72 h-72 bg-indigo-400/40 dark:bg-indigo-700/20 rounded-full blur-3xl"></div>
+
         </div>
         
         <div className="w-full max-w-md relative z-10">
-          <Card className="border-none shadow-sm overflow-hidden bg-gradient-to-br from-background to-violet-50/50 dark:from-background dark:to-violet-950/20 hover:shadow-md transition-all">
-            <CardHeader className="space-y-1 border-b border-violet-100 dark:border-violet-900/50">
+        <Card className="border-none shadow-md overflow-hidden bg-gradient-to-br from-background to-violet-100/70 dark:from-background dark:to-violet-950/20 hover:shadow-lg transition-all">
+        <CardHeader className="space-y-1 border-b border-violet-100 dark:border-violet-900/50">
               <div className="flex items-center gap-2 mb-2">
                 <div className="p-2 rounded-lg bg-violet-50 dark:bg-violet-900/20">
                   <UserPlus className="h-6 w-6 text-violet-500 dark:text-violet-400" />
@@ -199,7 +201,7 @@ export default function Register() {
                   )}
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 mb-10">
                   <Label htmlFor="confirmPassword" className="text-foreground">Confirm Password</Label>
                   <Input
                     id="confirmPassword"
