@@ -138,7 +138,7 @@ export default function Home() {
                 </section>
 
                 {/* Features Section */}
-                <section className="py-16 relative">
+                <section className="py-20 relative z-1">
                     <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-violet-50/90 to-transparent dark:from-violet-950/10 dark:to-transparent"></div>
 
                     <div className="container max-w-6xl px-6 mx-auto relative z-10">

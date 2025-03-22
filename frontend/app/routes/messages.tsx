@@ -1,438 +1,464 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Link } from "react-router";
-import { useAuth } from "../contexts/AuthContext";
+"use client"
+
+import { useState } from "react"
+import { Link } from "react-router"
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardFooter,
-    CardHeader,
-    CardTitle,
-} from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Spinner } from "../components/ui/spinner";
-import { Checkbox } from "../components/ui/checkbox";
-import { Label } from "../components/ui/label";
-import api from "../lib/api";
+  Bell,
+  BookOpen,
+  LogOut,
+  Mail,
+  MessageSquare,
+  MoreHorizontal,
+  PenSquare,
+  Search,
+  Send,
+  Settings,
+  Trash2,
+  User,
+} from "lucide-react"
 
-// Define interfaces for our data types
-interface User {
-    _id: string;
-    name: string;
-    email?: string;
-    enrollmentNumber?: string;
-    profilePicture?: string;
-}
-
-interface Message {
-    _id: string;
-    sender: string | User | null;
-    recipient: string | User;
-    message: string;
-    isRead: boolean;
-    isAnonymous: boolean;
-    createdAt: string;
-    updatedAt: string;
-}
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
+import { Badge } from "~/components/ui/badge"
+import { Button } from "~/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/components/ui/card"
+import { Input } from "~/components/ui/input"
+import { Separator } from "~/components/ui/separator"
+import { Textarea } from "~/components/ui/textarea"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select"
 
 export default function Messages() {
-    const [users, setUsers] = useState<User[]>([]);
-    const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
-    const [selectedUser, setSelectedUser] = useState<User | null>(null);
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [newMessage, setNewMessage] = useState("");
-    const [isAnonymous, setIsAnonymous] = useState(false);
-    const [activeTab, setActiveTab] = useState<"sent" | "received">("sent");
-    const [isLoading, setIsLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [isComposeOpen, setIsComposeOpen] = useState(false);
-    const [error, setError] = useState("");
-    const { user } = useAuth();
-    const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [selectedConversation, setSelectedConversation] = useState<number | null>(0)
+  const [composeOpen, setComposeOpen] = useState(false)
 
-    // Fetch users on component mount
-    useEffect(() => {
-        if (user?._id) {
-            fetchUsers();
-            fetchSentMessages();
-        }
-    }, [user]);
-
-    const fetchUsers = async () => {
-        try {
-            // Get all users
-            const response = await api.get("/users/me");
-            const currentUser = response.data.data;
-            
-            // For demo purposes, we'll use entries API to get users to message
-            const entriesResponse = await api.get("/entries");
-            const entries = entriesResponse.data.data.entries || [];
-            
-            // Extract unique users from entries
-            const uniqueUsers = new Map<string, User>();
-            entries.forEach((entry: any) => {
-                if (entry.user && entry.user._id !== currentUser._id) {
-                    uniqueUsers.set(entry.user._id, entry.user);
-                }
-            });
-            
-            const usersList = Array.from(uniqueUsers.values());
-            setUsers(usersList);
-            setFilteredUsers(usersList);
-        } catch (err: any) {
-            console.error("Failed to fetch users:", err);
-        }
-    };
-
-    useEffect(() => {
-        if (searchQuery.trim() === "") {
-            setFilteredUsers(users);
-        } else {
-            const query = searchQuery.toLowerCase();
-            const filtered = users.filter(
-                u => 
-                    u.name.toLowerCase().includes(query) || 
-                    (u.enrollmentNumber && u.enrollmentNumber.toLowerCase().includes(query))
-            );
-            setFilteredUsers(filtered);
-        }
-    }, [searchQuery, users]);
-
-    useEffect(() => {
-        scrollToBottom();
-    }, [messages]);
-
-    const fetchSentMessages = async () => {
-        try {
-            setIsLoading(true);
-            const response = await api.get("/messages/sent");
-            setMessages(response.data.data || []);
-        } catch (err: any) {
-            setError(err.response?.data?.message || "Failed to fetch sent messages.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const fetchReceivedMessages = async () => {
-        try {
-            setIsLoading(true);
-            const response = await api.get("/messages");
-            setMessages(response.data.data || []);
-        } catch (err: any) {
-            setError(err.response?.data?.message || "Failed to fetch received messages.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newMessage.trim() || !selectedUser) return;
-
-        try {
-            await api.post("/messages", {
-                recipientId: selectedUser._id,
-                message: newMessage,
-                isAnonymous: isAnonymous,
-            });
-
-            setNewMessage("");
-            setIsComposeOpen(false);
-            // Refresh the sent messages list after sending
-            fetchSentMessages();
-            setActiveTab("sent");
-        } catch (err: any) {
-            setError(err.response?.data?.message || "Failed to send message.");
-        }
-    };
-
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
-    const handleTabChange = (tab: "sent" | "received") => {
-        setActiveTab(tab);
-        setSelectedUser(null);
-        setIsComposeOpen(false);
-        
-        if (tab === "sent") {
-            fetchSentMessages();
-        } else if (tab === "received") {
-            fetchReceivedMessages();
-        }
-    };
-
-    const openComposeForm = (user: User) => {
-        setSelectedUser(user);
-        setIsComposeOpen(true);
-    };
-
-    const getSenderName = (message: Message): string => {
-        if (message.isAnonymous) {
-            return "Anonymous";
-        }
-        
-        if (!message.sender) {
-            return "Anonymous";
-        }
-        
-        if (typeof message.sender === 'object') {
-            return message.sender.name;
-        }
-        
-        if (message.sender === user?._id) {
-            return "You";
-        }
-        
-        const senderUser = users.find(u => u._id === message.sender);
-        return senderUser?.name || "Unknown User";
-    };
-
-    const getRecipientName = (message: Message): string => {
-        if (typeof message.recipient === 'object') {
-            return message.recipient.name;
-        }
-        
-        if (message.recipient === user?._id) {
-            return "You";
-        }
-        
-        const recipientUser = users.find(u => u._id === message.recipient);
-        return recipientUser?.name || "Unknown User";
-    };
-
-    if (isLoading && !isComposeOpen) {
-        return (
-            <div className="flex min-h-screen items-center justify-center">
-                <Spinner size="lg" />
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-16 items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-2">
+              <BookOpen className="h-6 w-6 text-primary" />
+              <span className="text-xl font-bold">ClassOf2024</span>
+            </Link>
+            <div className="hidden md:flex md:gap-2">
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/dashboard">Dashboard</Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/yearbook">Yearbook</Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/memories">Memories</Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/messages">Messages</Link>
+              </Button>
             </div>
-        );
-    }
-
-    return (
-        <div className="min-h-screen bg-background">
-            <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
-                <div className="container flex h-16 items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <h1 className="text-xl font-bold">Reminiss</h1>
-                    </div>
-                    <Button asChild>
-                        <Link to="/dashboard">Back to Dashboard</Link>
-                    </Button>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="relative hidden md:block">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search messages..."
+                className="w-[200px] pl-8 md:w-[250px] lg:w-[300px]"
+              />
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative">
+                  <Bell className="h-5 w-5" />
+                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                    3
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[300px]">
+                <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="max-h-[300px] overflow-auto">
+                  {[1, 2, 3].map((i) => (
+                    <DropdownMenuItem key={i} className="flex flex-col items-start gap-1 p-3">
+                      <div className="flex w-full items-start gap-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={`/placeholder.svg?height=32&width=32`} />
+                          <AvatarFallback>JD</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 space-y-1">
+                          <p className="text-sm font-medium leading-none">
+                            {i === 1
+                              ? "Alex tagged you in a memory"
+                              : i === 2
+                                ? "Sarah sent you a message"
+                                : "Jordan added a new photo"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Just now</p>
+                        </div>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
                 </div>
-            </header>
-
-            <main className="container py-8">
-                <div className="mb-8">
-                    <h2 className="text-3xl font-bold tracking-tight">
-                        Private Messages
-                    </h2>
-                    <p className="text-muted-foreground">
-                        Connect with your batch mates through private messages
-                    </p>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer justify-center text-center">
+                  View all notifications
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative">
+                  <Mail className="h-5 w-5" />
+                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                    2
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[300px]">
+                <DropdownMenuLabel>Messages</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="max-h-[300px] overflow-auto">
+                  {[1, 2].map((i) => (
+                    <DropdownMenuItem key={i} className="flex flex-col items-start gap-1 p-3">
+                      <div className="flex w-full items-start gap-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={`/placeholder.svg?height=32&width=32`} />
+                          <AvatarFallback>JD</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 space-y-1">
+                          <p className="text-sm font-medium leading-none">{i === 1 ? "Taylor Swift" : "Anonymous"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {i === 1
+                              ? "Hey! Can't wait to see you at graduation!"
+                              : "You were always the kindest person in class..."}
+                          </p>
+                        </div>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
                 </div>
-
-                {error && (
-                    <div className="mb-4 rounded-md bg-destructive/15 p-3 text-sm text-destructive">
-                        {error}
-                    </div>
-                )}
-
-                <div className="flex justify-between items-center mb-6">
-                    <div className="flex space-x-4 border-b">
-                        <button
-                            className={`px-4 py-2 ${activeTab === "sent" ? "border-b-2 border-primary font-semibold" : ""}`}
-                            onClick={() => handleTabChange("sent")}
-                        >
-                            Sent Messages
-                        </button>
-                        <button
-                            className={`px-4 py-2 ${activeTab === "received" ? "border-b-2 border-primary font-semibold" : ""}`}
-                            onClick={() => handleTabChange("received")}
-                        >
-                            Received Messages
-                        </button>
-                    </div>
-                    <Button onClick={() => setIsComposeOpen(!isComposeOpen)}>
-                        {isComposeOpen ? "Close" : "New Message"}
-                    </Button>
-                </div>
-
-                {isComposeOpen ? (
-                    <div className="grid gap-6 mb-8 lg:grid-cols-[350px_1fr]">
-                        <Card className="overflow-hidden h-[calc(100vh-20rem)]">
-                            <CardHeader>
-                                <CardTitle>Find Users</CardTitle>
-                                <div className="pt-2">
-                                    <Input
-                                        placeholder="Search by name or enrollment number"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full"
-                                    />
-                                </div>
-                            </CardHeader>
-                            <CardContent className="h-full overflow-auto">
-                                {filteredUsers.length === 0 ? (
-                                    <p className="text-center text-sm text-muted-foreground p-4">
-                                        No users found
-                                    </p>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {filteredUsers.map((u) => (
-                                            <button
-                                                key={u._id}
-                                                onClick={() => setSelectedUser(u)}
-                                                className={`flex w-full items-center gap-3 rounded-md p-3 text-left hover:bg-muted/50 ${
-                                                    selectedUser?._id === u._id ? "bg-muted" : ""
-                                                }`}
-                                            >
-                                                <div className="h-10 w-10 flex-none rounded-full bg-primary/10 text-center leading-10">
-                                                    {u.name.charAt(0)}
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium">{u.name}</p>
-                                                    {u.enrollmentNumber && (
-                                                        <p className="text-sm text-muted-foreground">
-                                                            {u.enrollmentNumber}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        <Card className="flex flex-col h-[calc(100vh-20rem)]">
-                            {selectedUser ? (
-                                <>
-                                    <CardHeader className="border-b">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-full bg-primary/10 text-center leading-10">
-                                                {selectedUser.name.charAt(0)}
-                                            </div>
-                                            <div>
-                                                <CardTitle>
-                                                    {selectedUser.name}
-                                                </CardTitle>
-                                                {selectedUser.enrollmentNumber && (
-                                                    <CardDescription>
-                                                        {selectedUser.enrollmentNumber}
-                                                    </CardDescription>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="flex-1 p-4 flex items-center justify-center">
-                                        <div className="text-center">
-                                            <p className="mb-4 text-muted-foreground">
-                                                Send a message to {selectedUser.name}
-                                            </p>
-                                        </div>
-                                    </CardContent>
-                                    <CardFooter className="border-t p-4">
-                                        <form
-                                            onSubmit={handleSendMessage}
-                                            className="w-full"
-                                        >
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <Checkbox
-                                                    id="anonymous"
-                                                    checked={isAnonymous}
-                                                    onCheckedChange={(checked: boolean) => 
-                                                        setIsAnonymous(checked)
-                                                    }
-                                                />
-                                                <Label htmlFor="anonymous">Send anonymously</Label>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <Input
-                                                    value={newMessage}
-                                                    onChange={(e) =>
-                                                        setNewMessage(e.target.value)
-                                                    }
-                                                    placeholder="Type a message..."
-                                                    className="flex-1"
-                                                />
-                                                <Button
-                                                    type="submit"
-                                                    disabled={!newMessage.trim()}
-                                                >
-                                                    Send
-                                                </Button>
-                                            </div>
-                                        </form>
-                                    </CardFooter>
-                                </>
-                            ) : (
-                                <div className="flex h-full items-center justify-center p-4">
-                                    <div className="text-center">
-                                        <h3 className="mb-2 text-lg font-medium">
-                                            Select a recipient
-                                        </h3>
-                                        <p className="mb-4 text-muted-foreground">
-                                            Choose a user from the list to send a message
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-                        </Card>
-                    </div>
-                ) : (
-                    // Sent or Received Messages View
-                    <Card className="min-h-[calc(100vh-22rem)]">
-                        <CardHeader>
-                            <CardTitle>
-                                {activeTab === "sent" ? "Sent Messages" : "Received Messages"}
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {isLoading ? (
-                                <div className="flex justify-center my-8">
-                                    <Spinner size="lg" />
-                                </div>
-                            ) : messages.length === 0 ? (
-                                <p className="text-center py-8 text-muted-foreground">
-                                    No messages found
-                                </p>
-                            ) : (
-                                <div className="space-y-4">
-                                    {messages.map((message: Message) => (
-                                        <div key={message._id} className="border rounded-lg p-4">
-                                            <div className="flex justify-between mb-2">
-                                                <div>
-                                                    {activeTab === "sent" ? (
-                                                        <p className="font-medium">
-                                                            To: {getRecipientName(message)}
-                                                        </p>
-                                                    ) : (
-                                                        <p className="font-medium">
-                                                            From: {getSenderName(message)}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                                <p className="text-sm text-muted-foreground">
-                                                    {new Date(message.createdAt).toLocaleString()}
-                                                </p>
-                                            </div>
-                                            <p className="my-2">{message.message}</p>
-                                            {message.isAnonymous && (
-                                                <p className="text-sm italic text-muted-foreground">
-                                                    {activeTab === "sent" ? "Sent anonymously" : "Received anonymously"}
-                                                </p>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-            </main>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer justify-center text-center">
+                  View all messages
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="relative h-8 w-8 rounded-full">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src="/placeholder.svg?height=32&width=32" alt="@username" />
+                    <AvatarFallback>JD</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Log out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
-    );
+      </header>
+      <main className="container py-6">
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Whisper</h1>
+              <p className="text-muted-foreground">Connect with your classmates through public or anonymous messages</p>
+            </div>
+            <Button onClick={() => setComposeOpen(true)}>
+              <PenSquare className="mr-2 h-4 w-4" />
+              New Message
+            </Button>
+          </div>
+          <Separator className="my-2" />
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div className="md:col-span-1">
+              <Card className="h-[calc(100vh-220px)]">
+                <CardHeader className="p-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">Conversations</CardTitle>
+                    <Select defaultValue="all">
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue placeholder="Filter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Messages</SelectItem>
+                        <SelectItem value="unread">Unread</SelectItem>
+                        <SelectItem value="anonymous">Anonymous</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="relative mt-2">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input type="search" placeholder="Search conversations..." className="pl-8" />
+                  </div>
+                </CardHeader>
+                <CardContent className="h-[calc(100%-130px)] overflow-auto p-0">
+                  <div className="space-y-0.5">
+                    {Array.from({ length: 10 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`flex cursor-pointer items-center gap-3 p-4 transition-colors hover:bg-muted/50 ${selectedConversation === i ? "bg-muted" : ""}`}
+                        onClick={() => setSelectedConversation(i)}
+                      >
+                        <Avatar className="h-10 w-10">
+                          {i !== 2 ? (
+                            <AvatarImage src={`/placeholder.svg?height=40&width=40&text=User${i + 1}`} />
+                          ) : null}
+                          <AvatarFallback>{i === 2 ? "?" : `U${i + 1}`}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium">{i === 2 ? "Anonymous" : `Student ${i + 1}`}</p>
+                            <span className="text-xs text-muted-foreground">
+                              {i === 0 ? "Just now" : i === 1 ? "2h ago" : i === 2 ? "Yesterday" : `${i} days ago`}
+                            </span>
+                          </div>
+                          <p className="line-clamp-1 text-sm text-muted-foreground">
+                            {i === 0
+                              ? "Hey! Can't wait to see you at graduation!"
+                              : i === 1
+                                ? "Are you going to the pre-graduation party?"
+                                : i === 2
+                                  ? "You've always been an inspiration to me..."
+                                  : "Lorem ipsum dolor sit amet, consectetur adipiscing elit."}
+                          </p>
+                        </div>
+                        {i === 0 && (
+                          <Badge className="ml-auto flex h-5 w-5 items-center justify-center rounded-full p-0">1</Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            <div className="md:col-span-2">
+              {selectedConversation !== null ? (
+                <Card className="h-[calc(100vh-220px)] flex flex-col">
+                  <CardHeader className="flex-row items-center justify-between space-y-0 p-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10">
+                        {selectedConversation !== 2 ? (
+                          <AvatarImage
+                            src={`/placeholder.svg?height=40&width=40&text=User${selectedConversation + 1}`}
+                          />
+                        ) : null}
+                        <AvatarFallback>
+                          {selectedConversation === 2 ? "?" : `U${selectedConversation + 1}`}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <CardTitle>
+                          {selectedConversation === 2 ? "Anonymous" : `Student ${selectedConversation + 1}`}
+                        </CardTitle>
+                        <CardDescription>{selectedConversation === 2 ? "Anonymous message" : "Online"}</CardDescription>
+                      </div>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-5 w-5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem>
+                          <User className="mr-2 h-4 w-4" />
+                          <span>View Profile</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <MessageSquare className="mr-2 h-4 w-4" />
+                          <span>Mark as Unread</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive focus:text-destructive">
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          <span>Delete Conversation</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </CardHeader>
+                  <Separator />
+                  <CardContent className="flex-1 overflow-auto p-4">
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-3">
+                        <Avatar className="mt-1 h-8 w-8">
+                          {selectedConversation !== 2 ? (
+                            <AvatarImage
+                              src={`/placeholder.svg?height=32&width=32&text=User${selectedConversation + 1}`}
+                            />
+                          ) : null}
+                          <AvatarFallback>
+                            {selectedConversation === 2 ? "?" : `U${selectedConversation + 1}`}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="rounded-lg bg-muted p-3">
+                          <p className="text-sm">
+                            {selectedConversation === 0
+                              ? "Hey Jordan! Just wanted to check if you're coming to graduation rehearsal tomorrow?"
+                              : selectedConversation === 1
+                                ? "Are you going to the pre-graduation party this weekend? Everyone's going to be there!"
+                                : selectedConversation === 2
+                                  ? "I've always admired how you helped everyone in class. You're going to do great things after graduation."
+                                  : "Hi there! How's your senior year going?"}
+                          </p>
+                          <span className="mt-1 text-xs text-muted-foreground">
+                            {selectedConversation === 0 ? "10:30 AM" : "Yesterday"}
+                          </span>
+                        </div>
+                      </div>
+                      {selectedConversation !== 2 && (
+                        <div className="flex items-start justify-end gap-3">
+                          <div className="rounded-lg bg-primary p-3 text-primary-foreground">
+                            <p className="text-sm">
+                              {selectedConversation === 0
+                                ? "Yes, definitely! I'll be there at 9 AM sharp. Do we need to bring anything specific?"
+                                : "I'm planning to go! Do you know what time it starts?"}
+                            </p>
+                            <span className="mt-1 text-xs text-primary-foreground/70">
+                              {selectedConversation === 0 ? "10:32 AM" : "Yesterday"}
+                            </span>
+                          </div>
+                          <Avatar className="mt-1 h-8 w-8">
+                            <AvatarImage src="/placeholder.svg?height=32&width=32" alt="@username" />
+                            <AvatarFallback>JD</AvatarFallback>
+                          </Avatar>
+                        </div>
+                      )}
+                      {selectedConversation === 0 && (
+                        <>
+                          <div className="flex items-start gap-3">
+                            <Avatar className="mt-1 h-8 w-8">
+                              <AvatarImage
+                                src={`/placeholder.svg?height=32&width=32&text=User${selectedConversation + 1}`}
+                              />
+                              <AvatarFallback>U{selectedConversation + 1}</AvatarFallback>
+                            </Avatar>
+                            <div className="rounded-lg bg-muted p-3">
+                              <p className="text-sm">
+                                Just your cap and gown for a fitting! And maybe a pen to fill out some forms. See you
+                                there!
+                              </p>
+                              <span className="mt-1 text-xs text-muted-foreground">10:35 AM</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-center">
+                            <span className="text-xs text-muted-foreground">Today</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </CardContent>
+                  <Separator />
+                  <CardFooter className="p-4">
+                    <div className="flex w-full items-center gap-2">
+                      <Input
+                        placeholder={
+                          selectedConversation === 2 ? "You cannot reply to anonymous messages" : "Type a message..."
+                        }
+                        disabled={selectedConversation === 2}
+                        className="flex-1"
+                      />
+                      <Button size="icon" disabled={selectedConversation === 2}>
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardFooter>
+                </Card>
+              ) : (
+                <div className="flex h-[calc(100vh-220px)] flex-col items-center justify-center rounded-lg border border-dashed">
+                  <div className="mb-4 rounded-full bg-muted p-4">
+                    <MessageSquare className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="mb-2 text-lg font-medium">No Conversation Selected</h3>
+                  <p className="mb-4 max-w-md text-center text-sm text-muted-foreground">
+                    Select a conversation from the list or start a new one to begin messaging with your classmates.
+                  </p>
+                  <Button onClick={() => setComposeOpen(true)}>
+                    <PenSquare className="mr-2 h-4 w-4" />
+                    New Message
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Message</DialogTitle>
+            <DialogDescription>
+              Send a message to one of your classmates. You can choose to send it anonymously.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="recipient" className="text-sm font-medium">
+                Recipient
+              </label>
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a classmate" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="student1">Student 1</SelectItem>
+                  <SelectItem value="student2">Student 2</SelectItem>
+                  <SelectItem value="student3">Student 3</SelectItem>
+                  <SelectItem value="student4">Student 4</SelectItem>
+                  <SelectItem value="student5">Student 5</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="message" className="text-sm font-medium">
+                Message
+              </label>
+              <Textarea placeholder="Write your message here..." className="min-h-[120px]" />
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="anonymous" className="rounded border-muted" />
+              <label htmlFor="anonymous" className="text-sm">
+                Send anonymously
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="submit">Send Message</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
 }
+
