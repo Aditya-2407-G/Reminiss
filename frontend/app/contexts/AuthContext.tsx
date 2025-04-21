@@ -42,6 +42,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Handle different response structures
       if (response.data.success && response.data.data && response.data.data.user) {
         setUser(response.data.data.user);
+        console.log('User data:', response.data.data.user);
+        
       } else if (response.data.success && response.data.data) {
         // If user data is directly in data object
         setUser(response.data.data);

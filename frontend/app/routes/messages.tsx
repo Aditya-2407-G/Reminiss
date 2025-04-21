@@ -1,10 +1,35 @@
 "use client"
 
-import { useState } from "react"
-import { Link } from "react-router"
+import { useState, useEffect } from "react"
+import { useNavigate, Link } from "react-router"
+import { useAuth } from "../contexts/AuthContext"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "../components/ui/card"
+import { Button } from "../components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar"
+import { Badge } from "../components/ui/badge"
+import { Input } from "../components/ui/input"
+import { Separator } from "../components/ui/separator"
+import { Textarea } from "../components/ui/textarea"
 import {
-  Bell,
-  BookOpen,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
+import { Spinner } from "../components/ui/spinner"
+import { ThemeToggle } from "~/components/ui/theme-toggle"
+import {
+  Camera,
   LogOut,
   Mail,
   MessageSquare,
@@ -15,199 +40,298 @@ import {
   Settings,
   Trash2,
   User,
+  Sparkles,
+  BookMarked,
+  Users,
+  Palette,
+  Menu,
+  X,
+  BookmarkIcon,
+  LayoutDashboard,
+  Layers,
 } from "lucide-react"
 
-import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
-import { Badge } from "~/components/ui/badge"
-import { Button } from "~/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/components/ui/card"
-import { Input } from "~/components/ui/input"
-import { Separator } from "~/components/ui/separator"
-import { Textarea } from "~/components/ui/textarea"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select"
-
 export default function Messages() {
-  const [selectedConversation, setSelectedConversation] = useState<number | null>(0)
+  const { user, isAuthenticated, isLoading, logout } = useAuth()
+  const [selectedConversation, setSelectedConversation] = useState(0)
   const [composeOpen, setComposeOpen] = useState(false)
+  const [conversations, setConversations] = useState([])
+  const [isConversationsLoading, setIsConversationsLoading] = useState(true)
+  const [unreadNotifications, setUnreadNotifications] = useState(3)
+  const [unreadMessages, setUnreadMessages] = useState(2)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const navigate = useNavigate()
+
+  // Force recheck auth if needed
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      navigate("/login")
+    }
+  }, [isLoading, isAuthenticated, navigate])
+
+  useEffect(() => {
+    const fetchConversations = async () => {
+      try {
+        // Simulate API call with timeout
+        setTimeout(() => {
+          const mockConversations = Array.from({ length: 10 }).map((_, i) => ({
+            id: i,
+            name: i === 2 ? "Anonymous" : `Student ${i + 1}`,
+            avatar: i !== 2 ? `/placeholder.svg?height=40&width=40&text=User${i + 1}` : null,
+            lastMessage:
+              i === 0
+                ? "Hey! Can't wait to see you at graduation!"
+                : i === 1
+                  ? "Are you going to the pre-graduation party?"
+                  : i === 2
+                    ? "You've always been an inspiration to me..."
+                    : "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+            time: i === 0 ? "Just now" : i === 1 ? "2h ago" : i === 2 ? "Yesterday" : `${i} days ago`,
+            unread: i === 0 ? 1 : 0,
+            isAnonymous: i === 2,
+          }))
+          setConversations(mockConversations)
+          setIsConversationsLoading(false)
+        }, 1000)
+      } catch (error) {
+        console.error("Failed to fetch conversations:", error)
+        setConversations([])
+        setIsConversationsLoading(false)
+      }
+    }
+
+    if (isAuthenticated) {
+      fetchConversations()
+    } else {
+      setIsConversationsLoading(false)
+    }
+  }, [isAuthenticated])
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+      navigate("/login")
+    } catch (error) {
+      console.error("Logout failed:", error)
+      navigate("/login")
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return null // Will be redirected by the useEffect
+  }
+
+  const getInitials = (name) => {
+    if (!name || typeof name !== "string") return "U"
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2">
-              <BookOpen className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold">ClassOf2024</span>
-            </Link>
-            <div className="hidden md:flex md:gap-2">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/dashboard">Dashboard</Link>
-              </Button>
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/yearbook">Yearbook</Link>
-              </Button>
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/memories">Memories</Link>
-              </Button>
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/messages">Messages</Link>
-              </Button>
+    <div className="min-h-screen flex bg-gradient-to-br from-violet-200 via-indigo-100 to-background dark:from-violet-950/20 dark:via-background dark:to-background">
+      {/* Sidebar - Component */}
+      <aside
+        className={`fixed inset-y-0 z-50 flex flex-col w-64 border-r border-violet-100 dark:border-violet-900/50 bg-gradient-to-br from-background to-violet-100/70 dark:from-background dark:to-violet-950/20 transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
+      >
+        <div className="p-4 h-16 flex items-center justify-between border-b border-violet-100 dark:border-violet-900/50">
+          <Link to="/" className="flex items-center gap-2">
+            <Sparkles className="h-6 w-6 text-violet-500 dark:text-violet-400" />
+            <span className="text-xl font-bold">Reminiss</span>
+          </Link>
+          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSidebarOpen(false)}>
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* User Profile Section */}
+        <div className="p-4 border-b border-violet-100 dark:border-violet-900/50">
+          <div className="flex items-center gap-3 mb-3">
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={user?.profilePicture} alt={user?.name} />
+              <AvatarFallback>{getInitials(typeof user?.name === "string" ? user.name : "")}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium truncate">{user?.name || "Student"}</p>
+              <p className="text-xs text-muted-foreground">
+                {" "}
+                Class of{" "}
+                {user?.batch && typeof user.batch === "object"
+                  ? (user.batch as {batchYear?: string}).batchYear
+                  : user?.batch || "Unknown"}
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="relative hidden md:block">
+
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-1">
+              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>148 Classmates</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Camera className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>73 Memories</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation Links */}
+        <nav className="flex-1 overflow-y-auto p-2">
+          <div className="space-y-1">
+            <Button variant="ghost" className="w-full justify-start" asChild>
+              <Link to="/dashboard" className="flex items-center gap-3 px-3 py-2">
+                <LayoutDashboard className="h-4 w-4" />
+                <span>Dashboard</span>
+              </Link>
+            </Button>
+            <Button variant="ghost" className="w-full justify-start" asChild>
+              <Link to="/entries" className="flex items-center gap-3 px-3 py-2">
+                <BookmarkIcon className="h-4 w-4" />
+                <span>Yearbook</span>
+              </Link>
+            </Button>
+            <Button variant="ghost" className="w-full justify-start" asChild>
+              <Link to="/montage" className="flex items-center gap-3 px-3 py-2">
+                <Layers className="h-4 w-4" />
+                <span>Memories</span>
+              </Link>
+            </Button>
+            <Button
+              variant={`ghost`}
+              className="w-full justify-start bg-violet-100/50 dark:bg-violet-900/20 text-violet-900 dark:text-violet-100"
+              asChild
+            >
+              <Link to="/messages" className="flex items-center gap-3 px-3 py-2">
+                <MessageSquare className="h-4 w-4" />
+                <span>Whispers</span>
+                {unreadMessages > 0 && <Badge className="ml-auto">{unreadMessages}</Badge>}
+              </Link>
+            </Button>
+          </div>
+
+          <Separator className="my-4" />
+
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground px-3 py-1">Create</p>
+            <Button variant="ghost" className="w-full justify-start" asChild>
+              <Link to="/entries/new" className="flex items-center gap-3 px-3 py-2">
+                <BookMarked className="h-4 w-4" />
+                <span>New Entry</span>
+              </Link>
+            </Button>
+            <Button variant="ghost" className="w-full justify-start" asChild>
+              <Link to="/montage/create" className="flex items-center gap-3 px-3 py-2">
+                <Palette className="h-4 w-4" />
+                <span>New Montage</span>
+              </Link>
+            </Button>
+            <Button variant="ghost" className="w-full justify-start" asChild>
+              <Link to="/messages/new" className="flex items-center gap-3 px-3 py-2">
+                <Mail className="h-4 w-4" />
+                <span>New Whisper</span>
+              </Link>
+            </Button>
+          </div>
+        </nav>
+
+        {/* Bottom Actions */}
+        <div className="p-4 border-t border-border">
+          <div className="space-y-2">
+            <Button variant="ghost" className="w-full justify-start" asChild>
+              <Link to="/profile" className="flex items-center gap-3">
+                <User className="h-4 w-4" />
+                <span>Profile</span>
+              </Link>
+            </Button>
+            <Button variant="ghost" className="w-full justify-start" asChild>
+              <Link to="/settings" className="flex items-center gap-3">
+                <Settings className="h-4 w-4" />
+                <span>Settings</span>
+              </Link>
+            </Button>
+            <Button variant="ghost" className="w-full justify-start text-red-500" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-3" />
+              <span>Log out</span>
+            </Button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Mobile Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Main Content */}
+      <div className="flex-1 md:ml-64">
+        {/* Top Header */}
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-violet-100 dark:border-violet-900/50 bg-background/95 px-4 sm:px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:border-t-0">
+          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSidebarOpen(true)}>
+            <Menu className="h-5 w-5" />
+          </Button>
+
+          <div className="flex-1 flex items-center gap-4 md:gap-8">
+            <div className="relative flex-1 max-w-md ml-2">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search messages..."
-                className="w-[200px] pl-8 md:w-[250px] lg:w-[300px]"
+                placeholder="Search messages, classmates..."
+                className="pl-8 w-full border-violet-200 dark:border-violet-900/50 focus:ring-violet-500 dark:focus:ring-violet-400"
               />
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-                    3
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[300px]">
-                <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <div className="max-h-[300px] overflow-auto">
-                  {[1, 2, 3].map((i) => (
-                    <DropdownMenuItem key={i} className="flex flex-col items-start gap-1 p-3">
-                      <div className="flex w-full items-start gap-2">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={`/placeholder.svg?height=32&width=32`} />
-                          <AvatarFallback>JD</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 space-y-1">
-                          <p className="text-sm font-medium leading-none">
-                            {i === 1
-                              ? "Alex tagged you in a memory"
-                              : i === 2
-                                ? "Sarah sent you a message"
-                                : "Jordan added a new photo"}
-                          </p>
-                          <p className="text-xs text-muted-foreground">Just now</p>
-                        </div>
-                      </div>
-                    </DropdownMenuItem>
-                  ))}
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer justify-center text-center">
-                  View all notifications
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
-                  <Mail className="h-5 w-5" />
-                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-                    2
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[300px]">
-                <DropdownMenuLabel>Messages</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <div className="max-h-[300px] overflow-auto">
-                  {[1, 2].map((i) => (
-                    <DropdownMenuItem key={i} className="flex flex-col items-start gap-1 p-3">
-                      <div className="flex w-full items-start gap-2">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={`/placeholder.svg?height=32&width=32`} />
-                          <AvatarFallback>JD</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 space-y-1">
-                          <p className="text-sm font-medium leading-none">{i === 1 ? "Taylor Swift" : "Anonymous"}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {i === 1
-                              ? "Hey! Can't wait to see you at graduation!"
-                              : "You were always the kindest person in class..."}
-                          </p>
-                        </div>
-                      </div>
-                    </DropdownMenuItem>
-                  ))}
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer justify-center text-center">
-                  View all messages
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="relative h-8 w-8 rounded-full">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src="/placeholder.svg?height=32&width=32" alt="@username" />
-                    <AvatarFallback>JD</AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
-        </div>
-      </header>
-      <main className="container py-6">
-        <div className="flex flex-col gap-6">
-          <div className="flex items-center justify-between">
+
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+          </div>
+        </header>
+
+        {/* Main Content Area */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 relative">
+          {/* Decorative blurred circles */}
+          <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
+            <div className="absolute top-10 right-10 w-72 h-72 bg-purple-400/40 dark:bg-purple-700/20 rounded-full blur-3xl"></div>
+            <div className="absolute bottom-10 left-10 w-72 h-72 bg-indigo-400/40 dark:bg-indigo-700/20 rounded-full blur-3xl"></div>
+          </div>
+
+          {/* Page Header */}
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Whisper</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Whispers</h1>
               <p className="text-muted-foreground">Connect with your classmates through public or anonymous messages</p>
             </div>
-            <Button onClick={() => setComposeOpen(true)}>
+            <Button onClick={() => setComposeOpen(true)} className="bg-violet-600 hover:bg-violet-700 text-white">
               <PenSquare className="mr-2 h-4 w-4" />
-              New Message
+              New Whisper
             </Button>
           </div>
-          <Separator className="my-2" />
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+
+          {/* Messages Content */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Conversations List */}
             <div className="md:col-span-1">
-              <Card className="h-[calc(100vh-220px)]">
+              <Card className="border-violet-100 dark:border-violet-900/50 bg-gradient-to-br from-background to-violet-100/70 dark:from-background dark:to-violet-950/20 hover:shadow-md transition-all h-[calc(100vh-220px)]">
                 <CardHeader className="p-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">Conversations</CardTitle>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-violet-500 dark:text-violet-400" />
+                      Conversations
+                    </CardTitle>
                     <Select defaultValue="all">
-                      <SelectTrigger className="w-[120px]">
+                      <SelectTrigger className="w-[120px] border-violet-200 dark:border-violet-900/50">
                         <SelectValue placeholder="Filter" />
                       </SelectTrigger>
                       <SelectContent>
@@ -219,69 +343,88 @@ export default function Messages() {
                   </div>
                   <div className="relative mt-2">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input type="search" placeholder="Search conversations..." className="pl-8" />
+                    <Input
+                      type="search"
+                      placeholder="Search conversations..."
+                      className="pl-8 border-violet-200 dark:border-violet-900/50"
+                    />
                   </div>
                 </CardHeader>
                 <CardContent className="h-[calc(100%-130px)] overflow-auto p-0">
-                  <div className="space-y-0.5">
-                    {Array.from({ length: 10 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`flex cursor-pointer items-center gap-3 p-4 transition-colors hover:bg-muted/50 ${selectedConversation === i ? "bg-muted" : ""}`}
-                        onClick={() => setSelectedConversation(i)}
-                      >
-                        <Avatar className="h-10 w-10">
-                          {i !== 2 ? (
-                            <AvatarImage src={`/placeholder.svg?height=40&width=40&text=User${i + 1}`} />
-                          ) : null}
-                          <AvatarFallback>{i === 2 ? "?" : `U${i + 1}`}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <p className="font-medium">{i === 2 ? "Anonymous" : `Student ${i + 1}`}</p>
-                            <span className="text-xs text-muted-foreground">
-                              {i === 0 ? "Just now" : i === 1 ? "2h ago" : i === 2 ? "Yesterday" : `${i} days ago`}
-                            </span>
+                  {isConversationsLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Spinner />
+                    </div>
+                  ) : conversations.length > 0 ? (
+                    <div className="space-y-0.5">
+                      {conversations.map((conversation, i) => (
+                        <div
+                          key={i}
+                          className={`flex cursor-pointer items-center gap-3 p-4 transition-colors hover:bg-violet-100/50 dark:hover:bg-violet-900/20 ${selectedConversation === i ? "bg-violet-100/80 dark:bg-violet-900/30" : ""}`}
+                          onClick={() => setSelectedConversation(i)}
+                        >
+                          <Avatar className="h-10 w-10 border">
+                            {!conversation.isAnonymous ? <AvatarImage src={conversation.avatar} /> : null}
+                            <AvatarFallback>
+                              {conversation.isAnonymous ? "?" : getInitials(conversation.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <p className="font-medium">{conversation.name}</p>
+                              <span className="text-xs text-muted-foreground">{conversation.time}</span>
+                            </div>
+                            <p className="line-clamp-1 text-sm text-muted-foreground">{conversation.lastMessage}</p>
                           </div>
-                          <p className="line-clamp-1 text-sm text-muted-foreground">
-                            {i === 0
-                              ? "Hey! Can't wait to see you at graduation!"
-                              : i === 1
-                                ? "Are you going to the pre-graduation party?"
-                                : i === 2
-                                  ? "You've always been an inspiration to me..."
-                                  : "Lorem ipsum dolor sit amet, consectetur adipiscing elit."}
-                          </p>
+                          {conversation.unread > 0 && (
+                            <Badge className="ml-auto flex h-5 w-5 items-center justify-center rounded-full p-0 bg-violet-600">
+                              {conversation.unread}
+                            </Badge>
+                          )}
                         </div>
-                        {i === 0 && (
-                          <Badge className="ml-auto flex h-5 w-5 items-center justify-center rounded-full p-0">1</Badge>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-8 text-center p-4">
+                      <MessageSquare className="h-8 w-8 text-muted-foreground mb-2" />
+                      <h3 className="font-medium">No conversations yet</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Start a new conversation to connect with your classmates
+                      </p>
+                      <Button
+                        onClick={() => setComposeOpen(true)}
+                        className="bg-violet-600 hover:bg-violet-700 text-white"
+                      >
+                        <PenSquare className="mr-2 h-4 w-4" />
+                        New Whisper
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
+
+            {/* Message Display */}
             <div className="md:col-span-2">
-              {selectedConversation !== null ? (
-                <Card className="h-[calc(100vh-220px)] flex flex-col">
+              {selectedConversation !== null && conversations.length > 0 ? (
+                <Card className="border-violet-100 dark:border-violet-900/50 bg-gradient-to-br from-background to-violet-100/70 dark:from-background dark:to-violet-950/20 hover:shadow-md transition-all h-[calc(100vh-220px)] flex flex-col">
                   <CardHeader className="flex-row items-center justify-between space-y-0 p-4">
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        {selectedConversation !== 2 ? (
-                          <AvatarImage
-                            src={`/placeholder.svg?height=40&width=40&text=User${selectedConversation + 1}`}
-                          />
+                      <Avatar className="h-10 w-10 border">
+                        {!conversations[selectedConversation]?.isAnonymous ? (
+                          <AvatarImage src={conversations[selectedConversation]?.avatar} />
                         ) : null}
                         <AvatarFallback>
-                          {selectedConversation === 2 ? "?" : `U${selectedConversation + 1}`}
+                          {conversations[selectedConversation]?.isAnonymous
+                            ? "?"
+                            : getInitials(conversations[selectedConversation]?.name)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <CardTitle>
-                          {selectedConversation === 2 ? "Anonymous" : `Student ${selectedConversation + 1}`}
-                        </CardTitle>
-                        <CardDescription>{selectedConversation === 2 ? "Anonymous message" : "Online"}</CardDescription>
+                        <CardTitle>{conversations[selectedConversation]?.name}</CardTitle>
+                        <CardDescription>
+                          {conversations[selectedConversation]?.isAnonymous ? "Anonymous message" : "Online"}
+                        </CardDescription>
                       </div>
                     </div>
                     <DropdownMenu>
@@ -291,10 +434,12 @@ export default function Messages() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <User className="mr-2 h-4 w-4" />
-                          <span>View Profile</span>
-                        </DropdownMenuItem>
+                        {!conversations[selectedConversation]?.isAnonymous && (
+                          <DropdownMenuItem>
+                            <User className="mr-2 h-4 w-4" />
+                            <span>View Profile</span>
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem>
                           <MessageSquare className="mr-2 h-4 w-4" />
                           <span>Mark as Unread</span>
@@ -307,21 +452,21 @@ export default function Messages() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </CardHeader>
-                  <Separator />
+                  <Separator className="bg-violet-100 dark:bg-violet-900/50" />
                   <CardContent className="flex-1 overflow-auto p-4">
                     <div className="space-y-4">
                       <div className="flex items-start gap-3">
-                        <Avatar className="mt-1 h-8 w-8">
-                          {selectedConversation !== 2 ? (
-                            <AvatarImage
-                              src={`/placeholder.svg?height=32&width=32&text=User${selectedConversation + 1}`}
-                            />
+                        <Avatar className="mt-1 h-8 w-8 border">
+                          {!conversations[selectedConversation]?.isAnonymous ? (
+                            <AvatarImage src={conversations[selectedConversation]?.avatar} />
                           ) : null}
                           <AvatarFallback>
-                            {selectedConversation === 2 ? "?" : `U${selectedConversation + 1}`}
+                            {conversations[selectedConversation]?.isAnonymous
+                              ? "?"
+                              : getInitials(conversations[selectedConversation]?.name)}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="rounded-lg bg-muted p-3">
+                        <div className="rounded-lg bg-violet-100/80 dark:bg-violet-900/30 p-3">
                           <p className="text-sm">
                             {selectedConversation === 0
                               ? "Hey Jordan! Just wanted to check if you're coming to graduation rehearsal tomorrow?"
@@ -336,34 +481,32 @@ export default function Messages() {
                           </span>
                         </div>
                       </div>
-                      {selectedConversation !== 2 && (
+                      {!conversations[selectedConversation]?.isAnonymous && (
                         <div className="flex items-start justify-end gap-3">
-                          <div className="rounded-lg bg-primary p-3 text-primary-foreground">
+                          <div className="rounded-lg bg-violet-600 p-3 text-white">
                             <p className="text-sm">
                               {selectedConversation === 0
                                 ? "Yes, definitely! I'll be there at 9 AM sharp. Do we need to bring anything specific?"
                                 : "I'm planning to go! Do you know what time it starts?"}
                             </p>
-                            <span className="mt-1 text-xs text-primary-foreground/70">
+                            <span className="mt-1 text-xs text-white/70">
                               {selectedConversation === 0 ? "10:32 AM" : "Yesterday"}
                             </span>
                           </div>
-                          <Avatar className="mt-1 h-8 w-8">
-                            <AvatarImage src="/placeholder.svg?height=32&width=32" alt="@username" />
-                            <AvatarFallback>JD</AvatarFallback>
+                          <Avatar className="mt-1 h-8 w-8 border">
+                            <AvatarImage src={user?.profilePicture} alt={user?.name} />
+                            <AvatarFallback>{getInitials(user?.name || "")}</AvatarFallback>
                           </Avatar>
                         </div>
                       )}
-                      {selectedConversation === 0 && (
+                      {selectedConversation === 0 && !conversations[selectedConversation]?.isAnonymous && (
                         <>
                           <div className="flex items-start gap-3">
-                            <Avatar className="mt-1 h-8 w-8">
-                              <AvatarImage
-                                src={`/placeholder.svg?height=32&width=32&text=User${selectedConversation + 1}`}
-                              />
-                              <AvatarFallback>U{selectedConversation + 1}</AvatarFallback>
+                            <Avatar className="mt-1 h-8 w-8 border">
+                              <AvatarImage src={conversations[selectedConversation]?.avatar} />
+                              <AvatarFallback>{getInitials(conversations[selectedConversation]?.name)}</AvatarFallback>
                             </Avatar>
-                            <div className="rounded-lg bg-muted p-3">
+                            <div className="rounded-lg bg-violet-100/80 dark:bg-violet-900/30 p-3">
                               <p className="text-sm">
                                 Just your cap and gown for a fitting! And maybe a pen to fill out some forms. See you
                                 there!
@@ -378,46 +521,53 @@ export default function Messages() {
                       )}
                     </div>
                   </CardContent>
-                  <Separator />
+                  <Separator className="bg-violet-100 dark:bg-violet-900/50" />
                   <CardFooter className="p-4">
                     <div className="flex w-full items-center gap-2">
                       <Input
                         placeholder={
-                          selectedConversation === 2 ? "You cannot reply to anonymous messages" : "Type a message..."
+                          conversations[selectedConversation]?.isAnonymous
+                            ? "You cannot reply to anonymous messages"
+                            : "Type a message..."
                         }
-                        disabled={selectedConversation === 2}
-                        className="flex-1"
+                        disabled={conversations[selectedConversation]?.isAnonymous}
+                        className="flex-1 border-violet-200 dark:border-violet-900/50"
                       />
-                      <Button size="icon" disabled={selectedConversation === 2}>
+                      <Button
+                        size="icon"
+                        disabled={conversations[selectedConversation]?.isAnonymous}
+                        className="bg-violet-600 hover:bg-violet-700 text-white"
+                      >
                         <Send className="h-4 w-4" />
                       </Button>
                     </div>
                   </CardFooter>
                 </Card>
               ) : (
-                <div className="flex h-[calc(100vh-220px)] flex-col items-center justify-center rounded-lg border border-dashed">
-                  <div className="mb-4 rounded-full bg-muted p-4">
-                    <MessageSquare className="h-8 w-8 text-muted-foreground" />
+                <div className="flex h-[calc(100vh-220px)] flex-col items-center justify-center rounded-lg border border-dashed border-violet-200 dark:border-violet-900/50 bg-gradient-to-br from-background to-violet-100/70 dark:from-background dark:to-violet-950/20">
+                  <div className="mb-4 rounded-full bg-violet-100 dark:bg-violet-900/30 p-4">
+                    <MessageSquare className="h-8 w-8 text-violet-600 dark:text-violet-400" />
                   </div>
                   <h3 className="mb-2 text-lg font-medium">No Conversation Selected</h3>
                   <p className="mb-4 max-w-md text-center text-sm text-muted-foreground">
                     Select a conversation from the list or start a new one to begin messaging with your classmates.
                   </p>
-                  <Button onClick={() => setComposeOpen(true)}>
+                  <Button onClick={() => setComposeOpen(true)} className="bg-violet-600 hover:bg-violet-700 text-white">
                     <PenSquare className="mr-2 h-4 w-4" />
-                    New Message
+                    New Whisper
                   </Button>
                 </div>
               )}
             </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
 
+      {/* New Message Dialog */}
       <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
-        <DialogContent>
+        <DialogContent className="border-violet-200 dark:border-violet-900/50 bg-gradient-to-br from-background to-violet-100/70 dark:from-background dark:to-violet-950/20">
           <DialogHeader>
-            <DialogTitle>New Message</DialogTitle>
+            <DialogTitle>New Whisper</DialogTitle>
             <DialogDescription>
               Send a message to one of your classmates. You can choose to send it anonymously.
             </DialogDescription>
@@ -428,7 +578,7 @@ export default function Messages() {
                 Recipient
               </label>
               <Select>
-                <SelectTrigger>
+                <SelectTrigger className="border-violet-200 dark:border-violet-900/50">
                   <SelectValue placeholder="Select a classmate" />
                 </SelectTrigger>
                 <SelectContent>
@@ -444,7 +594,10 @@ export default function Messages() {
               <label htmlFor="message" className="text-sm font-medium">
                 Message
               </label>
-              <Textarea placeholder="Write your message here..." className="min-h-[120px]" />
+              <Textarea
+                placeholder="Write your message here..."
+                className="min-h-[120px] border-violet-200 dark:border-violet-900/50"
+              />
             </div>
             <div className="flex items-center gap-2">
               <input type="checkbox" id="anonymous" className="rounded border-muted" />
@@ -454,7 +607,9 @@ export default function Messages() {
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit">Send Message</Button>
+            <Button type="submit" className="bg-violet-600 hover:bg-violet-700 text-white">
+              Send Whisper
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

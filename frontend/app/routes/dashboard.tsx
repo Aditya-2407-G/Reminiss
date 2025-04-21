@@ -169,7 +169,7 @@ export default function Dashboard() {
     };
 
     return (
-        <div className="min-h-screen flex bg-gradient-to-br from-violet-200 via-indigo-100 to-background dark:from-violet-950/20 dark:via-background dark:to-background">
+        <div className="min-h-screen flex bg-gradient-to-br from-violet-200 via-indigo-100 to-background dark:from-violet-950/20 dark:via-background dark:to-background ">
             {/* Sidebar - Component */}
             <aside className={`fixed inset-y-0 z-50 flex flex-col w-64 border-r border-violet-100 dark:border-violet-900/50 bg-gradient-to-br from-background to-violet-100/70 dark:from-background dark:to-violet-950/20 transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}>
             <div className="p-4 h-16 flex items-center justify-between border-b border-violet-100 dark:border-violet-900/50">
@@ -193,7 +193,7 @@ export default function Dashboard() {
                         </Avatar>
                         <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">{user?.name || "Student"}</p>
-                            <p className="text-xs text-muted-foreground">Class of {new Date().getFullYear()}</p>
+                            <p className="text-xs text-muted-foreground"> Class of {user?.batch && typeof user.batch === 'object' ? (user.batch as {batchYear?: string}).batchYear : user?.batch || "Unknown"}</p>
                         </div>
                     </div>
                     
@@ -219,7 +219,7 @@ export default function Dashboard() {
                             </Link>
                         </Button>
                         <Button variant="ghost" className="w-full justify-start" asChild>
-                            <Link to="/entries" className="flex items-center gap-3 px-3 py-2">
+                            <Link to="/yearbook" className="flex items-center gap-3 px-3 py-2">
                                 <BookmarkIcon className="h-4 w-4" />
                                 <span>Yearbook</span>
                             </Link>

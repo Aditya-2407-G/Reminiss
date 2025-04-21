@@ -8,6 +8,7 @@ import {
   generateRefreshToken,
   invalidateAllUserTokens 
 } from "../utils/tokenService.js";
+import { College } from "../models/college.model.js";
 
 const registerUser = asyncHandler(async (req, res) => {
   const { name, email, password, enrollmentNumber, batchCode } = req.body;
@@ -131,10 +132,30 @@ const logoutUser = asyncHandler(async (req, res) => {
 });
 
 const getCurrentUser = asyncHandler(async (req, res) => {
+
+  console.log("test0",req.user);
+
+  const user = await User.findById(req.user._id)
+  .populate({ path: "batch", select: "batchYear college degree" }).
+  select("-_id -password -__v");
+
+  const college = await College.findById(user.batch.college).select("name -_id");
+
+  user.batch.college = college;
+
+  console.log("test1",user);
+  
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+
+  
   return res
     .status(200)
     .json(
-      new ApiResponse(200, req.user, "Current user fetched successfully")
+      new ApiResponse(200, user, "Current user fetched successfully")
     );
 });
 

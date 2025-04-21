@@ -11,4 +11,5 @@ export default [
 //   route("entries/:id", "routes/entries.$id.tsx"),
   route("montage", "routes/montage.tsx"),
   route("messages", "routes/messages.tsx"),
+  route("yearbook", "routes/yearbook.tsx"),
 ] satisfies RouteConfig;
