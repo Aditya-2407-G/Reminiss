@@ -1,4 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
+import { uploadToGoogleDrive } from "./googleDrive.js";
+import axios from "axios";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -6,22 +8,42 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const uploadOnCloudinary = async (localFilePath) => {
+const transformAndUpload = async (localFilePath) => {
   try {
     if (!localFilePath) return null;
     
-    // Upload the file on Cloudinary
-    const response = await cloudinary.uploader.upload(localFilePath, {
+    // Upload to Cloudinary for transformation
+    const cloudinaryResponse = await cloudinary.uploader.upload(localFilePath, {
       resource_type: "auto",
+      transformation: [
+        { width: 800, height: 1000, crop: "fill" },
+        { quality: "auto" },
+        { fetch_format: "auto" }
+      ]
     });
     
-    // File has been uploaded successfully
-    return response.url;
+    // Download the transformed image using axios
+    const transformedImageResponse = await axios({
+      method: 'get',
+      url: cloudinaryResponse.secure_url,
+      responseType: 'arraybuffer'
+    });
+    
+    // Upload to Google Drive
+    const driveFileUrl = await uploadToGoogleDrive(
+      Buffer.from(transformedImageResponse.data),
+      `yearbook_${Date.now()}.jpg`,
+      'image/jpeg'
+    );
+
+    // Delete the image from Cloudinary after getting transformed version
+    await cloudinary.uploader.destroy(cloudinaryResponse.public_id);
+    
+    return driveFileUrl;
   } catch (error) {
-    // Remove the locally saved temporary file as the upload operation failed
-    console.error("Error uploading to Cloudinary:", error);
+    console.error("Error in transform and upload:", error);
     return null;
   }
 };
 
-export { uploadOnCloudinary }; 
+export { transformAndUpload }; 

@@ -1,236 +1,187 @@
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Link } from "react-router"
-import { Bell, BookOpen, Heart, LogOut, Mail, MessageSquare, Search, Settings, User } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Bell, Heart, ChevronDown, LogOut, Mail, Search, Settings, Sparkles, User } from "lucide-react"
+import api from "~/lib/api"
 
-import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
-import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
-import { Card, CardContent, CardFooter } from "~/components/ui/card"
 import { Input } from "~/components/ui/input"
-import { Separator } from "~/components/ui/separator"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "~/components/ui/dialog"
-import { Textarea } from "~/components/ui/textarea"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "~/components/ui/pagination"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@radix-ui/react-dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar"
+import { Badge } from "~/components/ui/badge"
 
-// Mock data for students
-const generateMockStudents = (count: number) => {
-  return Array.from({ length: count }).map((_, i) => ({
-    id: i + 1,
-    name: `Student Name ${i + 1}`,
-    major:
-      i % 5 === 0
-        ? "Computer Science"
-        : i % 5 === 1
-          ? "Business"
-          : i % 5 === 2
-            ? "Arts"
-            : i % 5 === 3
-              ? "Engineering"
-              : "Mathematics",
-    quote:
-      i % 3 === 0
-        ? "The future belongs to those who believe in the beauty of their dreams."
-        : i % 3 === 1
-          ? "Life is what happens when you're busy making other plans."
-          : "Education is the passport to the future, for tomorrow belongs to those who prepare for it today.",
-    likes: 10 + i,
-    activities:
-      i % 2 === 0
-        ? ["Student Council", "Debate Team", "Chess Club"]
-        : ["Basketball Team", "Drama Club", "Yearbook Committee"],
-    futurePlans:
-      i % 4 === 0
-        ? "Attending Stanford University to study Computer Science"
-        : i % 4 === 1
-          ? "Gap year to travel across Europe before attending NYU"
-          : i % 4 === 2
-            ? "Working at my family's business while attending community college"
-            : "Joining the military before pursuing higher education",
-    photoUrl: `/placeholder.svg?height=300&width=225&text=Student${i + 1}`,
-  }))
+const getImageUrl = (url: string) => {
+  if (url.includes('drive.google.com')) {
+    // Handle different Google Drive URL formats
+    let fileId;
+    if (url.includes('id=')) {
+      fileId = url.split('id=')[1].split('&')[0]; // Handle potential additional parameters
+    } else if (url.includes('/d/')) {
+      fileId = url.split('/d/')[1].split('/')[0];
+    } else if (url.includes('/file/d/')) {
+      fileId = url.split('/file/d/')[1].split('/')[0];
+    }
+    
+    if (fileId) {
+      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+    }
+  }
+  return url;
+};
+
+interface Entry {
+  _id: string
+  user: {
+    _id: string
+    name: string
+    enrollmentNumber: string
+    profilePicture: string
+  }
+  imageUrl: string
+  message: string
+  tags: string[]
+  batch: {
+    _id: string
+    batchYear: string
+    batchCode: string
+  }
+  college: {
+    _id: string
+    name: string
+    code: string
+  }
+  degree: string
+  createdAt: string
+}
+
+interface BatchInfo {
+  totalStudents: number;
+  batchYear: string;
+  batchCode: string;
+  enrollmentNumbers: string[];
 }
 
 export default function Yearbook() {
-  const [selectedStudent, setSelectedStudent] = useState<number | null>(null)
-  const [currentPage, setCurrentPage] = useState(1)
+  const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [filterMajor, setFilterMajor] = useState("all")
-  const [sortOrder, setSortOrder] = useState("asc")
-  const [viewMode, setViewMode] = useState("grid")
+  const [entries, setEntries] = useState<(Entry | null)[]>([])
+  const [loading, setLoading] = useState(true)
+  const [batchInfo, setBatchInfo] = useState<BatchInfo | null>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const matchedStudentRef = useRef<HTMLDivElement>(null)
+  const [selectedEnrollment, setSelectedEnrollment] = useState<string | null>(null)
 
-  // Mock data - in a real app, this would come from an API
-  const totalStudents = 500
-  const studentsPerPage = 20
-  const totalPages = Math.ceil(totalStudents / studentsPerPage)
+  const scrollToGrid = () => {
+    gridRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
 
-  const [allStudents] = useState(() => generateMockStudents(totalStudents))
-  const [displayedStudents, setDisplayedStudents] = useState(allStudents.slice(0, studentsPerPage))
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
 
-  // Filter and paginate students
+    const matchedEnrollment = batchInfo?.enrollmentNumbers.find(
+      (enroll) => enroll.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      entries.some(entry => 
+        entry?.user.enrollmentNumber === enroll && 
+        entry.user.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    );
+
+    if (matchedEnrollment) {
+      setSelectedEnrollment(matchedEnrollment);
+      // Directly scroll to the matched student
+      const element = document.querySelector(`[data-enrollment="${matchedEnrollment}"]`);
+      element?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      });
+    }
+  }
+
   useEffect(() => {
-    let filtered = [...allStudents]
+    fetchEntries()
+  }, [])
 
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(
-        (student) => student.name.toLowerCase().includes(query) || student.major.toLowerCase().includes(query),
-      )
+  const fetchEntries = async () => {
+    try {
+      const response = await api.get('/entries')
+      setEntries(response.data.data.entries)
+      setBatchInfo(response.data.data.batchInfo)
+    } catch (error) {
+      console.error('Failed to fetch entries:', error)
+    } finally {
+      setLoading(false)
     }
-
-    // Apply major filter
-    if (filterMajor !== "all") {
-      filtered = filtered.filter((student) => student.major === filterMajor)
-    }
-
-    // Apply sorting
-    filtered.sort((a, b) => {
-      if (sortOrder === "asc") {
-        return a.name.localeCompare(b.name)
-      } else {
-        return b.name.localeCompare(a.name)
-      }
-    })
-
-    // Calculate pagination
-    const startIndex = (currentPage - 1) * studentsPerPage
-    const paginatedStudents = filtered.slice(startIndex, startIndex + studentsPerPage)
-
-    setDisplayedStudents(paginatedStudents)
-  }, [allStudents, currentPage, searchQuery, filterMajor, sortOrder])
-
-  // Handle search input change
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value)
-    setCurrentPage(1) // Reset to first page when searching
   }
 
-  // Handle filter change
-  const handleFilterChange = (value: string) => {
-    setFilterMajor(value)
-    setCurrentPage(1) // Reset to first page when filtering
-  }
-
-  // Handle sort order change
-  const handleSortChange = (value: string) => {
-    setSortOrder(value)
-  }
-
-  // Generate pagination items
-  const renderPaginationItems = () => {
-    const items = []
-
-    // Always show first page
-    items.push(
-      <PaginationItem key="first">
-        <PaginationLink onClick={() => setCurrentPage(1)} isActive={currentPage === 1}>
-          1
-        </PaginationLink>
-      </PaginationItem>,
-    )
-
-    // Show ellipsis if needed
-    if (currentPage > 3) {
-      items.push(
-        <PaginationItem key="ellipsis-1">
-          <PaginationEllipsis />
-        </PaginationItem>,
-      )
-    }
-
-    // Show current page and surrounding pages
-    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
-      if (i === 1 || i === totalPages) continue // Skip first and last page as they're always shown
-
-      items.push(
-        <PaginationItem key={i}>
-          <PaginationLink onClick={() => setCurrentPage(i)} isActive={currentPage === i}>
-            {i}
-          </PaginationLink>
-        </PaginationItem>,
-      )
-    }
-
-    // Show ellipsis if needed
-    if (currentPage < totalPages - 2) {
-      items.push(
-        <PaginationItem key="ellipsis-2">
-          <PaginationEllipsis />
-        </PaginationItem>,
-      )
-    }
-
-    // Always show last page
-    if (totalPages > 1) {
-      items.push(
-        <PaginationItem key="last">
-          <PaginationLink onClick={() => setCurrentPage(totalPages)} isActive={currentPage === totalPages}>
-            {totalPages}
-          </PaginationLink>
-        </PaginationItem>,
-      )
-    }
-
-    return items
-  }
+  // Filter entries based on search
+  const filteredEntries = entries.filter((entry) => {
+    if (!entry) return false;
+    
+    const searchLower = searchQuery.toLowerCase().trim();
+    return (
+      entry.user.name.toLowerCase().includes(searchLower) ||
+      entry.user.enrollmentNumber.toLowerCase().includes(searchLower) ||
+      entry.message.toLowerCase().includes(searchLower)
+    );
+  });
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="sticky top-0 z-50 w-full border-b border-violet-100 dark:border-violet-900/50 bg-background/95 backdrop-blur">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2">
-              <BookOpen className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold">ClassOf2024</span>
+            <Link to="/" className="flex items-center gap-2">
+              <Sparkles className="h-6 w-6 text-violet-500 dark:text-violet-400" />
+              <span className="text-xl font-bold text-foreground">Reminiss</span>
             </Link>
             <div className="hidden md:flex md:gap-2">
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/dashboard">Dashboard</Link>
+                <Link to="/dashboard">Dashboard</Link>
               </Button>
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/yearbook">Yearbook</Link>
+                <Link to="/yearbook">Yearbook</Link>
               </Button>
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/memories">Memories</Link>
+                <Link to="/memories">Memories</Link>
               </Button>
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/messages">Messages</Link>
+                <Link to="/messages">Messages</Link>
               </Button>
             </div>
           </div>
+
+          {/* Search bar in header */}
+          <div className="flex-1 max-w-md mx-4">
+            <form onSubmit={handleSearch} className="relative">
+              <Search 
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground cursor-pointer" 
+                onClick={handleSearch}
+              />
+              <Input
+                placeholder="Search by name or enrollment number..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 w-full"
+              />
+            </form>
+          </div>
+
           <div className="flex items-center gap-4">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative">
                   <Bell className="h-5 w-5" />
-                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-violet-500 text-[10px] text-white">
                     3
                   </span>
                 </Button>
@@ -270,7 +221,7 @@ export default function Yearbook() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative">
                   <Mail className="h-5 w-5" />
-                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-violet-500 text-[10px] text-white">
                     2
                   </span>
                 </Button>
@@ -334,318 +285,147 @@ export default function Yearbook() {
           </div>
         </div>
       </header>
-      <main className="container py-6">
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight">Class of 2024 Yearbook</h1>
-                <p className="text-muted-foreground">
-                  Browse through your classmates' profiles and leave messages for them
-                </p>
-              </div>
-            </div>
 
-            {/* Search and Filter Bar */}
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Search by name or major..."
-                  className="pl-8"
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Select value={filterMajor} onValueChange={handleFilterChange}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Filter by Major" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Majors</SelectItem>
-                    <SelectItem value="Computer Science">Computer Science</SelectItem>
-                    <SelectItem value="Business">Business</SelectItem>
-                    <SelectItem value="Arts">Arts</SelectItem>
-                    <SelectItem value="Engineering">Engineering</SelectItem>
-                    <SelectItem value="Mathematics">Mathematics</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={sortOrder} onValueChange={handleSortChange}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Sort Order" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="asc">Alphabetical (A-Z)</SelectItem>
-                    <SelectItem value="desc">Alphabetical (Z-A)</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={viewMode} onValueChange={setViewMode}>
-                  <SelectTrigger className="w-[120px]">
-                    <SelectValue placeholder="View" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="grid">Grid View</SelectItem>
-                    <SelectItem value="list">List View</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <Separator className="my-2" />
-
-            {/* Results Stats */}
-            <div className="text-sm text-muted-foreground">
-              Showing {displayedStudents.length} students
-              {searchQuery && ` matching "${searchQuery}"`}
-              {filterMajor !== "all" && ` in ${filterMajor}`}
-            </div>
-
-            {/* Student Grid */}
-            <div
-              className={
-                viewMode === "grid"
-                  ? "grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-                  : "flex flex-col gap-4"
-              }
+      <main>
+        {/* Hero Section */}
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-violet-50 to-transparent dark:from-violet-950/20">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center space-y-8 p-4"
+          >
+            <h1 className="text-6xl md:text-8xl font-bold bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">
+              Class of {batchInfo?.batchYear}
+            </h1>
+            <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
+            Captured in time
+            </p>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
             >
-              {displayedStudents.map((student) =>
-                viewMode === "grid" ? (
-                  <Card key={student.id} className="overflow-hidden">
-                    <div
-                      className="relative aspect-[3/4] w-full cursor-pointer"
-                      onClick={() => setSelectedStudent(student.id)}
+              <Button 
+                size="lg" 
+                onClick={scrollToGrid}
+                className="bg-violet-600 hover:bg-violet-700 text-white"
+              >
+                Open Yearbook
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </motion.div>
+          </motion.div>
+        </div>
+
+        {/* Entries Grid Section */}
+        <div className="min-h-screen bg-background py-16" ref={gridRef}>
+          <div className="container">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+              {loading ? (
+                // Loading skeleton
+                Array.from({ length: 20 }).map((_, i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="aspect-square bg-muted rounded-md"></div>
+                    <div className="h-2 bg-muted rounded mt-2 w-2/3"></div>
+                  </div>
+                ))
+              ) : (
+                batchInfo?.enrollmentNumbers.map((enrollmentNumber) => {
+                  const entry = entries.find(e => e?.user.enrollmentNumber === enrollmentNumber);
+                  const isSelected = enrollmentNumber === selectedEnrollment;
+                  
+                  return (
+                    <motion.div
+                      key={enrollmentNumber}
+                      data-enrollment={enrollmentNumber}
+                      ref={isSelected ? matchedStudentRef : null}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ 
+                        opacity: 1, 
+                        scale: 1,
+                        border: isSelected ? '2px solid rgb(139, 92, 246)' : 'none'
+                      }}
+                      transition={{ delay: 0.02 }}
+                      onClick={() => entry && setSelectedEntry(entry)}
+                      className={`cursor-pointer group space-y-1 ${isSelected ? 'ring-2 ring-violet-500 rounded-md' : ''}`}
                     >
-                      <img
-                        src={student.photoUrl || "/placeholder.svg"}
-                        alt={student.name}
-                        className="w-full h-full object-cover transition-transform hover:scale-105"
-                      />
-                    </div>
-                    <CardContent className="p-4">
-                      <h3 className="font-medium">{student.name}</h3>
-                      <p className="text-xs text-muted-foreground">{student.major}</p>
-                      <p className="mt-2 text-xs italic line-clamp-2">"{student.quote}"</p>
-                    </CardContent>
-                    <CardFooter className="flex justify-between p-4 pt-0">
-                      <Button variant="ghost" size="sm">
-                        <Heart className="mr-1 h-4 w-4" />
-                        <span className="text-xs">{student.likes}</span>
-                      </Button>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MessageSquare className="mr-1 h-4 w-4" />
-                            <span className="text-xs">Message</span>
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Send a message to {student.name}</DialogTitle>
-                            <DialogDescription>
-                              Your message will be delivered to their yearbook inbox.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <div className="flex items-center gap-4">
-                              <Avatar className="h-12 w-12">
-                                <AvatarImage src={student.photoUrl} />
-                                <AvatarFallback>S{student.id}</AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <h4 className="font-medium">{student.name}</h4>
-                                <p className="text-sm text-muted-foreground">{student.major}</p>
-                              </div>
-                            </div>
-                            <Textarea placeholder="Write your message here..." className="min-h-[120px]" />
-                            <div className="flex items-center gap-2">
-                              <input type="checkbox" id="anonymous" className="rounded border-muted" />
-                              <label htmlFor="anonymous" className="text-sm">
-                                Send anonymously
-                              </label>
-                            </div>
+                      <div className="relative aspect-square overflow-hidden rounded-md border border-violet-100 dark:border-violet-900/50">
+                        {entry ? (
+                          <img 
+                            src={getImageUrl(entry.imageUrl)}
+                            alt={entry.user.name}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-muted">
+                            <User className="h-8 w-8 text-muted-foreground" />
                           </div>
-                          <DialogFooter>
-                            <Button type="submit">Send Message</Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    </CardFooter>
-                  </Card>
-                ) : (
-                  <Card key={student.id} className="overflow-hidden">
-                    <div className="flex p-4">
-                      <div
-                        className="relative h-20 w-20 shrink-0 cursor-pointer overflow-hidden rounded-md"
-                        onClick={() => setSelectedStudent(student.id)}
-                      >
-                        <img
-                          src={student.photoUrl || "/placeholder.svg"}
-                          alt={student.name}
-                          className="w-full h-full object-cover"
-                        />
+                        )}
                       </div>
-                      <div className="ml-4 flex-1">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="font-medium">{student.name}</h3>
-                            <p className="text-xs text-muted-foreground">{student.major}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button variant="ghost" size="sm">
-                              <Heart className="mr-1 h-4 w-4" />
-                              <span className="text-xs">{student.likes}</span>
-                            </Button>
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <MessageSquare className="mr-1 h-4 w-4" />
-                                  <span className="text-xs">Message</span>
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Send a message to {student.name}</DialogTitle>
-                                  <DialogDescription>
-                                    Your message will be delivered to their yearbook inbox.
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <div className="space-y-4 py-4">
-                                  <div className="flex items-center gap-4">
-                                    <Avatar className="h-12 w-12">
-                                      <AvatarImage src={student.photoUrl} />
-                                      <AvatarFallback>S{student.id}</AvatarFallback>
-                                    </Avatar>
-                                    <div>
-                                      <h4 className="font-medium">{student.name}</h4>
-                                      <p className="text-sm text-muted-foreground">{student.major}</p>
-                                    </div>
-                                  </div>
-                                  <Textarea placeholder="Write your message here..." className="min-h-[120px]" />
-                                  <div className="flex items-center gap-2">
-                                    <input type="checkbox" id="anonymous" className="rounded border-muted" />
-                                    <label htmlFor="anonymous" className="text-sm">
-                                      Send anonymously
-                                    </label>
-                                  </div>
-                                </div>
-                                <DialogFooter>
-                                  <Button type="submit">Send Message</Button>
-                                </DialogFooter>
-                              </DialogContent>
-                            </Dialog>
-                          </div>
-                        </div>
-                        <p className="mt-2 text-sm italic line-clamp-2">"{student.quote}"</p>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {student.activities.map((activity, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">
-                              {activity}
-                            </Badge>
-                          ))}
-                        </div>
+                      <div className="space-y-0.5 text-center">
+                        <p className="text-xs font-medium truncate">
+                          {entry ? entry.user.name : 'Not Uploaded'}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {entry?.message || enrollmentNumber}
+                        </p>
                       </div>
-                    </div>
-                  </Card>
-                ),
+                    </motion.div>
+                  );
+                })
               )}
             </div>
-
-            {/* Pagination */}
-            <Pagination className="mt-6">
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                    aria-disabled={currentPage === 1}
-                    className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
-                  />
-                </PaginationItem>
-
-                {renderPaginationItems()}
-
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                    aria-disabled={currentPage === totalPages}
-                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
           </div>
         </div>
       </main>
 
-      {selectedStudent !== null && (
-        <Dialog open={selectedStudent !== null} onOpenChange={() => setSelectedStudent(null)}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>Student Profile</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-4">
-                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg">
-                  <img
-                    src={allStudents[selectedStudent - 1]?.photoUrl || "/placeholder.svg"}
-                    alt={allStudents[selectedStudent - 1]?.name || "Student"}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="flex justify-between">
-                  <Button variant="outline" size="sm">
-                    <Heart className="mr-2 h-4 w-4" />
-                    Like Profile
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <MessageSquare className="mr-2 h-4 w-4" />
-                    Send Message
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-6">
+      {/* Entry Modal */}
+      <AnimatePresence>
+        {selectedEntry && (
+          <Dialog open={!!selectedEntry} onOpenChange={() => setSelectedEntry(null)}>
+            <DialogContent className="max-w-4xl">
+              <DialogHeader>
+                <DialogTitle>Yearbook Entry</DialogTitle>
+              </DialogHeader>
+              <div className="grid md:grid-cols-2 gap-8">
                 <div>
-                  <h2 className="text-2xl font-bold">{allStudents[selectedStudent - 1]?.name}</h2>
-                  <p className="text-muted-foreground">{allStudents[selectedStudent - 1]?.major}</p>
-                </div>
-                <div>
-                  <h3 className="font-medium">Quote</h3>
-                  <p className="italic">"{allStudents[selectedStudent - 1]?.quote}"</p>
-                </div>
-                <div>
-                  <h3 className="font-medium">Activities</h3>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {allStudents[selectedStudent - 1]?.activities.map((activity, index) => (
-                      <Badge key={index}>{activity}</Badge>
-                    ))}
+                  <div className="aspect-[4/5] rounded-xl overflow-hidden">
+                    <img
+                      src={getImageUrl(selectedEntry.imageUrl)}
+                      alt={selectedEntry.user.name}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                 </div>
-                <div>
-                  <h3 className="font-medium">Future Plans</h3>
-                  <p className="text-sm text-muted-foreground">{allStudents[selectedStudent - 1]?.futurePlans}</p>
-                </div>
-                <div>
-                  <h3 className="font-medium">Photo Gallery</h3>
-                  <div className="grid grid-cols-3 gap-2 mt-2">
-                    {[1, 2, 3, 4, 5, 6].map((i) => (
-                      <div key={i} className="relative aspect-square overflow-hidden rounded-md">
-                        <img
-                          src={`/placeholder.svg?height=80&width=80&text=Photo${i}`}
-                          alt={`Photo ${i}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={selectedEntry.user.profilePicture || "/placeholder.svg"} />
+                      <AvatarFallback>{selectedEntry.user.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <h2 className="text-xl font-semibold">{selectedEntry.user.name}</h2>
+                      <p className="text-muted-foreground">{selectedEntry.college.name} • {selectedEntry.degree}</p>
+                    </div>
+                  </div>
+                  <p className="text-lg">{selectedEntry.message}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedEntry.tags.map(tag => (
+                      <Badge key={tag} variant="secondary">{tag}</Badge>
                     ))}
+                  </div>
+                  <div className="pt-4 border-t">
+                    <p className="text-sm text-muted-foreground">
+                      Posted on {new Date(selectedEntry.createdAt).toLocaleDateString()}
+                    </p>
                   </div>
                 </div>
               </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+            </DialogContent>
+          </Dialog>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

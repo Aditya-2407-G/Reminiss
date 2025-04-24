@@ -8,6 +8,8 @@ import { Label } from '../components/ui/label';
 import { Spinner } from '../components/ui/spinner';
 import api from '../lib/api';
 
+const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
+
 export default function NewEntry() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -26,6 +28,12 @@ export default function NewEntry() {
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError('Image file size should be less than 15MB. Please choose a smaller file or compress the image.');
+      setImageFile(null);
+      return;
+    }
 
     setImageFile(file);
     setIsUploading(true);

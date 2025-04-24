@@ -4,7 +4,7 @@ import { Batch } from "../models/batch.model.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { transformAndUpload } from "../utils/cloudinary.js";
 
 const createEntry = asyncHandler(async (req, res) => {
   const { message, tags } = req.body;
@@ -35,11 +35,13 @@ const createEntry = asyncHandler(async (req, res) => {
 
   const imageLocalPath = req.files.image.tempFilePath;
   
-  // Upload image to Cloudinary
-  const imageUrl = await uploadOnCloudinary(imageLocalPath);
+  // Transform with Cloudinary and upload to Google Drive
+  const imageUrl = await transformAndUpload(imageLocalPath);
+
+  console.log(imageUrl);
   
   if (!imageUrl) {
-    throw new ApiError(500, "Error uploading image");
+    throw new ApiError(500, "Error processing and uploading image");
   }
 
   const entry = await Entry.create({
@@ -58,43 +60,40 @@ const createEntry = asyncHandler(async (req, res) => {
 });
 
 const getAllEntries = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;  
-
-  // Get user's batch info directly from middleware
   const userBatch = await Batch.findById(req.user.batch);
   if (!userBatch) {
     throw new ApiError(404, "User's batch information not found");
   }
 
-  // Create filter based on user's college
   const filter = {
     college: userBatch.college
   };
 
-  const pageNumber = parseInt(page, 10);
-  const limitNumber = parseInt(limit, 10);
-  const skip = (pageNumber - 1) * limitNumber;
-
-  const entriesCount = await Entry.countDocuments(filter);
-  const totalPages = Math.ceil(entriesCount / limitNumber);
-
   const entries = await Entry.find(filter)
     .populate("user", "name enrollmentNumber profilePicture")
     .populate("college", "name code")
-    .populate("batch", "batchYear batchCode")
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limitNumber);
+    .populate("batch", "batchYear batchCode");
+
+  // Create a map for quick lookup of entries by enrollment number
+  const entriesByEnrollment = entries.reduce((acc, entry) => {
+    acc[entry.user.enrollmentNumber] = entry;
+    return acc;
+  }, {});
+
+  // Sort entries according to enrollment numbers list
+  const sortedEntries = userBatch.enrollmentNumbers.map(enrollmentNumber => 
+    entriesByEnrollment[enrollmentNumber] || null
+  );
 
   return res
     .status(200)
     .json(new ApiResponse(200, {
-      entries,
-      pagination: {
-        totalEntries: entriesCount,
-        totalPages,
-        currentPage: pageNumber,
-        entriesPerPage: limitNumber
+      entries: sortedEntries,
+      batchInfo: {
+        totalStudents: userBatch.enrollmentNumbers.length,
+        batchYear: userBatch.batchYear,
+        batchCode: userBatch.batchCode,
+        enrollmentNumbers: userBatch.enrollmentNumbers
       }
     }, "Entries fetched successfully"));
 });
