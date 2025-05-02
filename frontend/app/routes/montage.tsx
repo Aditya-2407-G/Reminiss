@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Camera, Trash2, Maximize, RotateCw, Crop as CropIcon, Type, Download, Plus, X, Image, Menu, Sparkles } from "lucide-react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { Camera, Trash2, Maximize, RotateCw, Crop as CropIcon, Type, Download, Plus, Minus, X, Image, Menu, Sparkles } from "lucide-react";
 import ReactCrop, { type Crop, type PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { Button } from "~/components/ui/button";
@@ -30,6 +30,8 @@ import { ThemeToggle } from "~/components/ui/theme-toggle";
 import { useAuth } from "../contexts/AuthContext";
 import { Separator } from "~/components/ui/separator";
 import { HexColorPicker } from "react-colorful";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
+import { Switch } from "~/components/ui/switch";
 
 // Types for our elements
 type ElementType = "image" | "text";
@@ -45,8 +47,63 @@ interface CollageElement {
   content: string; // image URL or text content
   fontSize?: number;
   fontColor?: string;
+  fontFamily?: string; // Add font family property
   zIndex: number;
 }
+
+// Add a CanvasBackground component to show grid and boundaries
+const CanvasBackground = ({ width, height, gridSize = 20, showGrid = true }) => {
+  // Calculate number of grid lines
+  const horizontalLines = Math.floor(height / gridSize);
+  const verticalLines = Math.floor(width / gridSize);
+  
+  return (
+    <div className="absolute inset-0 pointer-events-none">
+      {/* Canvas border indicator - always show this */}
+      <div className="absolute inset-0 border-2 border-dashed border-violet-300/30 dark:border-violet-700/30 rounded-sm" />
+      
+      {/* Grid lines - only show when enabled */}
+      {showGrid && (
+        <svg width="100%" height="100%" className="absolute inset-0 opacity-10">
+          {/* Horizontal grid lines */}
+          {Array.from({ length: horizontalLines }).map((_, i) => (
+            <line 
+              key={`h-${i}`}
+              x1="0"
+              y1={i * gridSize}
+              x2={width}
+              y2={i * gridSize}
+              stroke="currentColor"
+              strokeWidth="0.5"
+            />
+          ))}
+          
+          {/* Vertical grid lines */}
+          {Array.from({ length: verticalLines }).map((_, i) => (
+            <line 
+              key={`v-${i}`}
+              x1={i * gridSize}
+              y1="0"
+              x2={i * gridSize}
+              y2={height}
+              stroke="currentColor"
+              strokeWidth="0.5"
+            />
+          ))}
+          
+          {/* Center indicators */}
+          <line x1={width/2} y1="0" x2={width/2} y2={height} stroke="currentColor" strokeWidth="1" strokeDasharray="5,5" />
+          <line x1="0" y1={height/2} x2={width} y2={height/2} stroke="currentColor" strokeWidth="1" strokeDasharray="5,5" />
+        </svg>
+      )}
+      
+      {/* Canvas dimensions indicator - always show this */}
+      <div className="absolute bottom-1 right-1 bg-background/80 text-xs px-2 py-1 rounded-sm border border-violet-200 dark:border-violet-800">
+        {width} × {height}px
+      </div>
+    </div>
+  );
+};
 
 // Main component
 export default function PhotoCollageMaker() {
@@ -63,8 +120,6 @@ export default function PhotoCollageMaker() {
   const [isRotating, setIsRotating] = useState(false);
   const [lastPointerPosition, setLastPointerPosition] = useState({ x: 0, y: 0 });
   const [isCropping, setIsCropping] = useState(false);
-  const [cropStart, setCropStart] = useState({ x: 0, y: 0 });
-  const [cropEnd, setCropEnd] = useState({ x: 0, y: 0 });
   const [cropConfig, setCropConfig] = useState<Crop>({
     unit: '%',
     width: 50,
@@ -84,6 +139,11 @@ export default function PhotoCollageMaker() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showTextColorPicker, setShowTextColorPicker] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [canvasContainerRef, setCanvasContainerRef] = useState<HTMLDivElement | null>(null);
+  const canvasContainerRefCallback = useRef<HTMLDivElement | null>(null);
+  const [showGrid, setShowGrid] = useState(true);
+  const [gridSize, setGridSize] = useState(50);
   
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const navigate = useNavigate();
@@ -106,7 +166,7 @@ export default function PhotoCollageMaker() {
         if (!file.type.startsWith('image/')) {
           throw new Error(`File "${file.name}" is not an image.`);
         }
-        
+
         const reader = new FileReader();
         reader.onload = (event) => {
           if (typeof event.target?.result === 'string') {
@@ -119,18 +179,35 @@ export default function PhotoCollageMaker() {
               const naturalWidth = img.naturalWidth;
               const naturalHeight = img.naturalHeight;
               
-              // Calculate position to center the image
-              const x = (canvasSize.width - naturalWidth) / 2;
-              const y = (canvasSize.height - naturalHeight) / 2;
+              // Calculate dimensions to fit within canvas while maintaining aspect ratio
+              let width = naturalWidth;
+              let height = naturalHeight;
               
-              // Create new element with original dimensions
+              // If image is larger than canvas, scale it down
+              const maxWidth = canvasSize.width * 0.2; 
+              const maxHeight = canvasSize.height * 0.2; 
+              
+              if (width > maxWidth || height > maxHeight) {
+                const ratioWidth = maxWidth / width;
+                const ratioHeight = maxHeight / height;
+                const ratio = Math.min(ratioWidth, ratioHeight);
+                
+                width = width * ratio;
+                height = height * ratio;
+              }
+              
+              // Calculate position to center the image
+              const x = (canvasSize.width - width) / 2;
+              const y = (canvasSize.height - height) / 2;
+              
+              // Create new element with adjusted dimensions
               const newElement: CollageElement = {
                 id: `element-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                 type: "image",
                 x: Math.max(0, x),
                 y: Math.max(0, y),
-                width: naturalWidth,
-                height: naturalHeight,
+                width: width,
+                height: height,
                 rotation: 0,
                 content: imageUrl,
                 zIndex: elements.length + 1
@@ -169,6 +246,7 @@ export default function PhotoCollageMaker() {
       content: textToAdd,
       fontSize: textSize,
       fontColor: textColor,
+      fontFamily: "Inter, sans-serif", // Default font
       zIndex: elements.length + 1
     };
     
@@ -179,7 +257,20 @@ export default function PhotoCollageMaker() {
 
   // Mouse handlers
   const handleMouseDown = (e: React.MouseEvent, elementId: string, action: "drag" | "resize" | "rotate") => {
+    e.preventDefault(); // Prevent default browser behavior
     e.stopPropagation();
+    
+    // Find the highest z-index currently in use
+    const highestZIndex = Math.max(...elements.map(el => el.zIndex), 0);
+    
+    // Update the selected element to have the highest z-index + 1
+    setElements(prev => 
+      prev.map(el => 
+        el.id === elementId 
+          ? { ...el, zIndex: highestZIndex + 1 } 
+          : el
+      )
+    );
     
     // Select the element
     setSelectedElement(elementId);
@@ -212,32 +303,29 @@ export default function PhotoCollageMaker() {
     } else if (action === "rotate") {
       setIsRotating(true);
       
-      // For rotation, we need to calculate the initial angle
+      // Get the element
       const element = elements.find(el => el.id === elementId);
-      if (element) {
+      if (element && canvasRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        
         // Calculate center of the element
-        const rect = canvasRef.current?.getBoundingClientRect();
-        if (rect) {
-          const centerX = rect.left + element.x + element.width / 2;
-          const centerY = rect.top + element.y + element.height / 2;
-          
-          // Store the initial angle between mouse and center
-          const initialAngle = Math.atan2(clientY - centerY, clientX - centerX) * (180 / Math.PI);
-          // Store the current rotation to add the delta to it
-          const currentRotation = element.rotation;
-          
-          // Store these values to use during rotation
-          setLastPointerPosition({ 
-            x: initialAngle, 
-            y: currentRotation 
-          });
-        }
+        const centerX = rect.left + element.x + element.width / 2;
+        const centerY = rect.top + element.y + element.height / 2;
+        
+        // Calculate initial angle between center and mouse position
+        const initialAngle = Math.atan2(clientY - centerY, clientX - centerX) * (180 / Math.PI);
+        
+        // Store initial angle and current rotation in lastPointerPosition
+        setLastPointerPosition({ 
+          x: initialAngle,  // Store initial angle in x
+          y: element.rotation  // Store current rotation in y
+        });
       }
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging && !isResizing && !isRotating) return;
+    if (!isDragging && !isResizing) return;
     
     const clientX = e.clientX;
     const clientY = e.clientY;
@@ -294,54 +382,13 @@ export default function PhotoCollageMaker() {
       
       // Update last position
       setLastPointerPosition({ x: clientX, y: clientY });
-    } else if (isRotating && draggedElement) {
-      // Get the element
-      const element = elements.find(el => el.id === draggedElement);
-      if (!element) return;
-      
-      // Get canvas position
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      
-      // Calculate center of the element
-      const centerX = rect.left + element.x + element.width / 2;
-      const centerY = rect.top + element.y + element.height / 2;
-      
-      // Calculate new angle between center and mouse position
-      const newAngle = Math.atan2(clientY - centerY, clientX - centerX) * (180 / Math.PI);
-      
-      // Calculate the angle change (delta)
-      const initialAngle = lastPointerPosition.x;
-      const angleDelta = newAngle - initialAngle;
-      
-      // Apply the delta to the initial rotation
-      const initialRotation = lastPointerPosition.y;
-      let newRotation = initialRotation + angleDelta;
-      
-      // Normalize rotation to 0-360 range
-      newRotation = newRotation % 360;
-      if (newRotation < 0) newRotation += 360;
-      
-      // Update rotation
-      setElements(prev => 
-        prev.map(el => 
-          el.id === draggedElement 
-            ? { ...el, rotation: newRotation } 
-            : el
-        )
-      );
     }
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-    setIsResizing(false);
-    setIsRotating(false);
-    setDraggedElement(null);
   };
 
   // Canvas click handler to deselect elements
   const handleCanvasClick = (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent text selection
+    
     // Only deselect if clicking directly on the canvas, not on an element
     if ((e.target as HTMLElement).id === "collage-canvas") {
       setSelectedElement(null);
@@ -451,9 +498,92 @@ export default function PhotoCollageMaker() {
 
   // Download the collage
   const downloadCollage = () => {
-    // In a real implementation, this would render the canvas to an image
-    // For this demo, we'll just show an alert
-    alert("In a full implementation, this would generate and download an image of your collage.");
+    if (canvasRef.current && elements.length > 0) {
+      // Create a temporary canvas to render the collage
+      const canvas = document.createElement('canvas');
+      canvas.width = canvasSize.width;
+      canvas.height = canvasSize.height;
+      const ctx = canvas.getContext('2d');
+      
+      if (!ctx) return;
+      
+      // Draw background
+      ctx.fillStyle = canvasBackground;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw background image if exists
+      if (backgroundImage) {
+        const img = document.createElement('img');
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          drawElementsAndDownload();
+        };
+        img.src = backgroundImage;
+      } else {
+        drawElementsAndDownload();
+      }
+      
+      function drawElementsAndDownload() {
+        // Sort elements by z-index
+        const sortedElements = [...elements].sort((a, b) => a.zIndex - b.zIndex);
+        
+        // Draw each element
+        let loadedCount = 0;
+        const totalImages = sortedElements.filter(el => el.type === "image").length;
+        
+        sortedElements.forEach(element => {
+          if (element.type === "image") {
+            const img = document.createElement('img');
+            img.onload = () => {
+              drawElement(ctx, element, img);
+              loadedCount++;
+              
+              // When all images are loaded, create download link
+              if (loadedCount === totalImages) {
+                finishDownload();
+              }
+            };
+            img.src = element.content;
+          } else if (element.type === "text") {
+            drawElement(ctx, element);
+            if (totalImages === 0) {
+              finishDownload();
+            }
+          }
+        });
+      }
+      
+      function drawElement(ctx: CanvasRenderingContext2D, element: CollageElement, img?: HTMLImageElement) {
+        ctx.save();
+        
+        // Apply transformations
+        ctx.translate(element.x + element.width / 2, element.y + element.height / 2);
+        ctx.rotate((element.rotation * Math.PI) / 180);
+        
+        if (element.type === "image" && img) {
+          ctx.drawImage(img, -element.width / 2, -element.height / 2, element.width, element.height);
+        } else if (element.type === "text") {
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.font = `${element.fontSize}px ${element.fontFamily || "Inter, sans-serif"}`;
+          ctx.fillStyle = element.fontColor || "#000000";
+          ctx.fillText(element.content, 0, 0);
+        }
+        
+        ctx.restore();
+      }
+      
+      function finishDownload() {
+        // Convert canvas to data URL and create download link
+        const dataUrl = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.download = `collage-${Date.now()}.png`;
+        link.href = dataUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    }
   };
 
   // Update text properties
@@ -500,18 +630,137 @@ export default function PhotoCollageMaker() {
     { name: "Facebook Cover", width: 851, height: 315 },
     { name: "Twitter Header", width: 1500, height: 500 },
     { name: "A4 Portrait", width: 794, height: 1123 },
-    { name: "A4 Landscape", width: 1123, height: 794 },
+    { name: "A4 Landscape", width: 1123, height: 794 }, // Ensure these dimensions are correct
   ];
 
   const handleCanvasSizePreset = (width: number, height: number) => {
+    // Set the canvas size state
     setCanvasSize({ width, height });
     
-    // Optionally adjust the canvas element size if using a fixed container
-    if (canvasRef.current) {
-      canvasRef.current.style.width = `${width}px`;
-      canvasRef.current.style.height = `${height}px`;
-    }
+    // Reset zoom to fit the new canvas size
+    setZoomLevel(1);
+    
+    // Ensure all elements stay within the new canvas boundaries
+    setElements(prev => 
+      prev.map(el => {
+        // Calculate new position to keep element within bounds
+        const newX = Math.min(el.x, width - el.width);
+        const newY = Math.min(el.y, height - el.height);
+        
+        // If element is wider than canvas, scale it down
+        let newWidth = el.width;
+        let newHeight = el.height;
+        
+        if (newWidth > width) {
+          const scale = width / newWidth * 0.95; // 95% of canvas width
+          newWidth = newWidth * scale;
+          newHeight = newHeight * scale;
+        }
+        
+        return {
+          ...el,
+          x: Math.max(0, newX),
+          y: Math.max(0, newY),
+          width: newWidth,
+          height: newHeight
+        };
+      })
+    );
   };
+
+  // Add a list of available fonts
+  const availableFonts = [
+    { name: "Inter", value: "Inter, sans-serif" },
+    { name: "Caveat", value: "Caveat, cursive" },
+    { name: "Arial", value: "Arial, sans-serif" },
+    { name: "Times New Roman", value: "Times New Roman, serif" },
+    { name: "Courier New", value: "Courier New, monospace" },
+    { name: "Georgia", value: "Georgia, serif" },
+    { name: "Verdana", value: "Verdana, sans-serif" },
+    { name: "Impact", value: "Impact, sans-serif" }
+  ];
+
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        setZoomLevel(prev => Math.max(0.1, Math.min(2, prev + delta)));
+      }
+    };
+
+    const container = canvasContainerRefCallback.current;
+    if (container) {
+      container.addEventListener('wheel', handleWheel, { passive: false });
+      return () => {
+        container.removeEventListener('wheel', handleWheel);
+      };
+    }
+  }, []);
+
+  useEffect(() => {
+    if (canvasRef.current) {
+      canvasRef.current.style.width = `${canvasSize.width}px`;
+      canvasRef.current.style.height = `${canvasSize.height}px`;
+    }
+  }, [canvasSize]);
+
+  useEffect(() => {
+    // Global mouse move and up handlers for rotation
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (isRotating && draggedElement) {
+        const element = elements.find(el => el.id === draggedElement);
+        if (!element || !canvasRef.current) return;
+        
+        const rect = canvasRef.current.getBoundingClientRect();
+        
+        // Calculate center of the element
+        const centerX = rect.left + element.x + element.width / 2;
+        const centerY = rect.top + element.y + element.height / 2;
+        
+        // Calculate angle between center and mouse position
+        const newAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
+        
+        // Calculate the angle change (delta)
+        const initialAngle = lastPointerPosition.x;
+        const angleDelta = newAngle - initialAngle;
+        
+        // Apply the delta to the initial rotation
+        const initialRotation = lastPointerPosition.y;
+        let newRotation = initialRotation + angleDelta;
+        
+        // Normalize rotation to 0-360 range
+        newRotation = newRotation % 360;
+        if (newRotation < 0) newRotation += 360;
+        
+        // Update rotation
+        setElements(prev => 
+          prev.map(el => 
+            el.id === draggedElement 
+              ? { ...el, rotation: newRotation } 
+              : el
+          )
+        );
+      }
+    };
+    
+    const handleGlobalMouseUp = () => {
+      setIsRotating(false);
+      setIsResizing(false);
+      setIsDragging(false);
+      setDraggedElement(null);
+    };
+    
+    // Add global event listeners regardless of isRotating state
+    document.addEventListener('mousemove', handleGlobalMouseMove);
+    document.addEventListener('mouseup', handleGlobalMouseUp);
+    
+    // Clean up
+    return () => {
+      document.removeEventListener('mousemove', handleGlobalMouseMove);
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [isRotating, draggedElement, elements, lastPointerPosition]);
 
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-violet-200 via-indigo-100 to-background dark:from-violet-950/20 dark:via-background dark:to-background">
@@ -622,82 +871,139 @@ export default function PhotoCollageMaker() {
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Canvas Area */}
-            <div className="lg:col-span-2">
-              <div className="border border-violet-100 dark:border-violet-900/50 rounded-lg shadow-sm bg-white dark:bg-gray-900 overflow-hidden">
-                <div 
-                  id="collage-canvas"
-                  ref={canvasRef}
-                  className="relative overflow-hidden bg-white dark:bg-gray-900"
-                  style={{
-                    width: `${canvasSize.width}px`,
-                    height: `${canvasSize.height}px`,
-                    backgroundColor: canvasBackground,
-                    backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none',
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    margin: '0 auto', // Center the canvas
-                    maxWidth: '100%', // Ensure it doesn't overflow on small screens
-                    maxHeight: '80vh', // Limit height on small screens
-                  }}
-                  onClick={handleCanvasClick}
-                  onMouseMove={handleMouseMove}
-                  onMouseUp={handleMouseUp}
-                  onMouseLeave={handleMouseUp}
-                >
-                  {/* Render all elements */}
-                  {elements.map((element) => (
-                    <div
-                      id={element.id}
-                      key={element.id}
-                      className={`absolute cursor-move ${selectedElement === element.id ? 'ring-2 ring-violet-500 dark:ring-violet-400' : ''}`}
-                      style={{
-                        left: `${element.x}px`,
-                        top: `${element.y}px`,
-                        width: `${element.width}px`,
-                        height: `${element.height}px`,
-                        transform: `rotate(${element.rotation}deg)`,
-                        zIndex: element.zIndex
-                      }}
-                      onMouseDown={(e) => handleMouseDown(e, element.id, "drag")}
-                    >
-                      {element.type === "image" ? (
-                        <img 
-                          src={element.content} 
-                          alt="Collage element" 
-                          className="w-full h-full"
-                          style={{ objectFit: "fill" }}
-                        />
-                      ) : (
-                        <div 
-                          className="w-full h-full flex items-center justify-center p-2 overflow-hidden"
-                          style={{ 
-                            fontSize: `${element.fontSize}px`,
-                            color: element.fontColor
-                          }}
-                        >
-                          {element.content}
-                        </div>
-                      )}
-                      
-                      {/* Controls when selected */}
-                      {selectedElement === element.id && (
-                        <>
+            <div className="lg:col-span-2 flex flex-col justify-center items-center">
+              {/* Add an outer container with fixed height and scrollbars */}
+              <div className="relative w-full border border-violet-100 dark:border-violet-900/50 rounded-lg shadow-sm bg-background overflow-auto max-h-[80vh]">
+                {/* Show zoom controls outside the canvas */}
+                <div className="sticky top-0 left-0 w-full bg-background/80 backdrop-blur-sm p-2 z-10 flex items-center gap-2 border-b border-violet-100 dark:border-violet-900/50">
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    onClick={() => setZoomLevel(prev => Math.max(0.1, prev - 0.1))}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <div className="text-xs font-medium">{Math.round(zoomLevel * 100)}%</div>
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    onClick={() => setZoomLevel(prev => Math.min(2, prev + 0.1))}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      // Calculate zoom to fit entire canvas in view
+                      if (canvasContainerRef) {
+                        const containerWidth = canvasContainerRef.clientWidth;
+                        const containerHeight = canvasContainerRef.clientHeight;
+                        const widthRatio = containerWidth / canvasSize.width;
+                        const heightRatio = containerHeight / canvasSize.height;
+                        const fitZoom = Math.min(widthRatio, heightRatio) * 0.9;
+                        setZoomLevel(fitZoom);
+                      }
+                    }}
+                  >
+                    Fit
+                  </Button>
+                </div>
+                
+                {/* Center the canvas in the container */}
+                <div className="flex justify-center items-start p-4 min-h-[600px]">
+                  <div 
+                    id="collage-canvas"
+                    className="border border-violet-100 dark:border-violet-900/50 rounded-lg shadow-sm bg-white dark:bg-gray-900 relative"
+                    style={{ 
+                      width: `${canvasSize.width}px`,
+                      height: `${canvasSize.height}px`,
+                      backgroundColor: canvasBackground,
+                      backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      transform: `scale(${zoomLevel})`,
+                      transformOrigin: 'center center',
+                      transition: 'transform 0.2s ease-out',
+                    }}
+                    onClick={handleCanvasClick}
+                    onMouseMove={handleMouseMove}
+                    onMouseLeave={() => {
+                      setIsDragging(false);
+                      setIsResizing(false);
+                    }}
+                    ref={(el) => {
+                      if (el) {
+                        canvasRef.current = el;
+                        canvasContainerRefCallback.current = el;
+                        setCanvasContainerRef(el);
+                      }
+                    }}
+                  >
+                    {/* Canvas background with grid */}
+                    <CanvasBackground 
+                      width={canvasSize.width} 
+                      height={canvasSize.height} 
+                      gridSize={gridSize} 
+                      showGrid={showGrid} 
+                    />
+                    
+                    {/* Render all elements */}
+                    {elements.map((element) => (
+                      <div
+                        id={element.id}
+                        key={element.id}
+                        className={`absolute cursor-move ${selectedElement === element.id ? 'ring-2 ring-violet-500 dark:ring-violet-400' : ''}`}
+                        style={{
+                          left: `${element.x}px`,
+                          top: `${element.y}px`,
+                          width: `${element.width}px`,
+                          height: `${element.height}px`,
+                          transform: `rotate(${element.rotation}deg)`,
+                          zIndex: element.zIndex
+                        }}
+                        onMouseDown={(e) => handleMouseDown(e, element.id, "drag")}
+                      >
+                        {element.type === "image" ? (
+                          <img 
+                            src={element.content} 
+                            alt="Collage element" 
+                            className="w-full h-full"
+                            style={{ objectFit: "fill" }}
+                          />
+                        ) : (
                           <div 
-                            className="absolute -right-3 -bottom-3 w-8 h-8 bg-violet-500 dark:bg-violet-400 rounded-full cursor-se-resize flex items-center justify-center"
-                            onMouseDown={(e) => handleMouseDown(e, element.id, "resize")}
+                            className="w-full h-full flex items-center justify-center p-2 overflow-hidden"
+                            style={{ 
+                              fontSize: `${element.fontSize}px`,
+                              color: element.fontColor,
+                              fontFamily: element.fontFamily || "Inter, sans-serif"
+                            }}
                           >
-                            <Maximize className="h-4 w-4 text-white" />
+                            {element.content}
                           </div>
-                          <div 
-                            className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-violet-500 dark:bg-violet-400 rounded-full cursor-move flex items-center justify-center"
-                            onMouseDown={(e) => handleMouseDown(e, element.id, "rotate")}
-                          >
-                            <RotateCw className="h-4 w-4 text-white" />
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))}
+                        )}
+                        
+                        {/* Controls when selected */}
+                        {selectedElement === element.id && (
+                          <>
+                            <div 
+                              className="absolute -right-3 -bottom-3 w-8 h-8 bg-violet-500 dark:bg-violet-400 rounded-full cursor-se-resize flex items-center justify-center"
+                              onMouseDown={(e) => handleMouseDown(e, element.id, "resize")}
+                            >
+                              <Maximize className="h-4 w-4 text-white" />
+                            </div>
+                            <div 
+                              className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-violet-500 dark:bg-violet-400 rounded-full cursor-move flex items-center justify-center"
+                              onMouseDown={(e) => handleMouseDown(e, element.id, "rotate")}
+                            >
+                              <RotateCw className="h-4 w-4 text-white" />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -827,14 +1133,39 @@ export default function PhotoCollageMaker() {
                         </div>
                         
                         {getSelectedElementData()?.type === "text" && (
-                          <div className="space-y-2">
-                            <Label htmlFor="text-content" className="text-xs">Text</Label>
-                            <Input 
-                              id="text-content" 
-                              value={getSelectedElementData()?.content || ""} 
-                              onChange={(e) => updateTextElement("content", e.target.value)} 
-                            />
-                          </div>
+                          <>
+                            <div className="space-y-2">
+                              <Label htmlFor="text-content" className="text-xs">Text</Label>
+                              <Input 
+                                id="text-content" 
+                                value={getSelectedElementData()?.content || ""} 
+                                onChange={(e) => updateTextElement("content", e.target.value)} 
+                              />
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label htmlFor="font-family" className="text-xs">Font</Label>
+                              <Select 
+                                value={getSelectedElementData()?.fontFamily || "Inter, sans-serif"}
+                                onValueChange={(value) => updateTextElement("fontFamily", value)}
+                              >
+                                <SelectTrigger id="font-family" className="w-full">
+                                  <SelectValue placeholder="Select font" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {availableFonts.map((font) => (
+                                    <SelectItem 
+                                      key={font.value} 
+                                      value={font.value}
+                                      style={{ fontFamily: font.value }}
+                                    >
+                                      {font.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </>
                         )}
                         
                         <div className="space-y-2">
@@ -975,6 +1306,79 @@ export default function PhotoCollageMaker() {
                         <Download className="mr-2 h-4 w-4" />
                         Download Collage
                       </Button>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Canvas Zoom ({Math.round(zoomLevel * 100)}%)</Label>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          onClick={() => setZoomLevel(prev => Math.max(0.1, prev - 0.1))}
+                          title="Zoom Out"
+                        >
+                          <Minus className="h-4 w-4" />
+                        </Button>
+                        <Slider 
+                          min={0.1} 
+                          max={2} 
+                          step={0.1} 
+                          value={[zoomLevel]} 
+                          onValueChange={(value) => setZoomLevel(value[0])} 
+                          className="flex-1"
+                        />
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          onClick={() => setZoomLevel(prev => Math.min(2, prev + 0.1))}
+                          title="Zoom In"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            // Calculate zoom to fit entire canvas in view
+                            if (canvasContainerRef) {
+                              const containerWidth = canvasContainerRef.clientWidth;
+                              const containerHeight = canvasContainerRef.clientHeight;
+                              const widthRatio = containerWidth / canvasSize.width;
+                              const heightRatio = containerHeight / canvasSize.height;
+                              const fitZoom = Math.min(widthRatio, heightRatio) * 0.95; // 95% to add some margin
+                              setZoomLevel(Math.min(1, fitZoom)); // Don't zoom in beyond 100%
+                            } else {
+                              setZoomLevel(1);
+                            }
+                          }}
+                        >
+                          Fit
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="show-grid">Show Grid</Label>
+                        <Switch 
+                          id="show-grid" 
+                          checked={showGrid} 
+                          onCheckedChange={setShowGrid} 
+                        />
+                      </div>
+                      {showGrid && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label htmlFor="grid-size" className="text-xs">Grid Size</Label>
+                            <Input 
+                              id="grid-size" 
+                              type="number" 
+                              value={gridSize} 
+                              onChange={(e) => setGridSize(parseInt(e.target.value) || 20)} 
+                              min="10"
+                              max="100"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </TabsContent>
                 </Tabs>
