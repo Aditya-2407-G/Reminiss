@@ -122,18 +122,6 @@ export default function Yearbook() {
     }
   }
 
-  // Filter entries based on search
-  const filteredEntries = entries.filter((entry) => {
-    if (!entry) return false;
-    
-    const searchLower = searchQuery.toLowerCase().trim();
-    return (
-      entry.user.name.toLowerCase().includes(searchLower) ||
-      entry.user.enrollmentNumber.toLowerCase().includes(searchLower) ||
-      entry.message.toLowerCase().includes(searchLower)
-    );
-  });
-
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
