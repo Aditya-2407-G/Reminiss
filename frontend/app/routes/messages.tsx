@@ -80,6 +80,7 @@ interface AnonymousThread {
   messages: Message[]
   messageCount: number
   lastActivity: string
+  isInitiatedByMe: boolean
 }
 
 export default function Messages() {
@@ -101,6 +102,17 @@ export default function Messages() {
   const [conversationFilter, setConversationFilter] = useState("all")
   const [dropdownKey, setDropdownKey] = useState(0)
   const navigate = useNavigate()
+
+  // Add this near the top of the file, after the api import
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Log the API configuration to debug endpoint issues
+      console.log("API client configuration:", {
+        baseURL: api.defaults.baseURL,
+        headers: api.defaults.headers
+      });
+    }
+  }, [isAuthenticated]);
 
   // Helper function to get a consistent conversation ID between two users
   const getConversationId = (user1Id: string, user2Id: string) => {
@@ -262,14 +274,24 @@ export default function Messages() {
       const response = await api.get("/messages/anonymous-threads")
       const threads = response?.data?.data || []
 
-      setAnonymousThreads(threads)
+      // Set the threads with information about who initiated them
+      setAnonymousThreads(threads.map((thread: AnonymousThread) => {
+        // Determine if the first message in the thread was sent by the current user
+        const firstMessage = thread.messages[0];
+        const isInitiatedByMe = firstMessage?.sender && firstMessage.sender._id === user?._id;
+        
+        return {
+          ...thread,
+          isInitiatedByMe
+        };
+      }));
     } catch (error) {
       console.error("Failed to fetch anonymous threads:", error)
       setAnonymousThreads([])
     } finally {
       setIsAnonymousThreadsLoading(false)
     }
-  }, [])
+  }, [user?._id])
 
   const fetchClassmates = async () => {
     try {
@@ -305,6 +327,38 @@ export default function Messages() {
       setIsAnonymousThreadsLoading(false)
     }
   }, [isAuthenticated, fetchConversations, fetchAnonymousThreads])
+
+  // For an anonymous thread, find potential recipient ID for fallback scenarios
+  const findRecipientIdFromThread = (thread: AnonymousThread, currentUserId: string): string | null => {
+    // First try to find a message sent BY current user to determine recipient
+    const messageSentByUser = thread.messages.find(msg => 
+      msg.sender && msg.sender._id === currentUserId
+    );
+    
+    if (messageSentByUser) {
+      if (typeof messageSentByUser.recipient === 'object' && messageSentByUser.recipient?._id) {
+        return messageSentByUser.recipient._id;
+      } else if (typeof messageSentByUser.recipient === 'string') {
+        return messageSentByUser.recipient;
+      }
+    }
+    
+    // If not found, try to find a message sent TO current user to determine sender
+    const messageSentToUser = thread.messages.find(msg => {
+      if (typeof msg.recipient === 'object') {
+        return msg.recipient?._id === currentUserId;
+      } else if (typeof msg.recipient === 'string') {
+        return msg.recipient === currentUserId;
+      }
+      return false;
+    });
+    
+    if (messageSentToUser && messageSentToUser.sender) {
+      return messageSentToUser.sender._id;
+    }
+    
+    return null;
+  }
 
   const handleSendMessage = async () => {
     if (!messageText.trim()) return
@@ -397,48 +451,296 @@ export default function Messages() {
       else if ((activeTab === "regular" && isAnonymous) || activeTab === "anonymous") {
         // If we're in the compose dialog or in the anonymous tab
         let actualRecipientId = ""
+        let anonymousThreadId = undefined
         
         // Get recipient ID - either from selected conversation, selected anonymous thread, or compose dialog
         if (selectedConversation !== null) {
           actualRecipientId = conversations[selectedConversation].recipientId
         } else if (selectedAnonymousThread !== null && activeTab === "anonymous") {
           const thread = anonymousThreads[selectedAnonymousThread]
+          anonymousThreadId = thread.threadId
           
-          // Send reply to anonymous message
-          await api.post("/messages/reply-anonymous", {
-            anonymousThreadId: thread.threadId,
-            message: messageText,
-          })
-
-          // Refresh anonymous threads to include the reply
-          await fetchAnonymousThreads()
-
-          toast.success("Anonymous reply sent", {
-            description: "Your reply has been sent anonymously.",
-          })
+          try {
+            console.log("Replying to anonymous thread:", {
+              threadId: thread.threadId,
+              messageCount: thread.messages.length,
+            });
+            
+            // Try the primary endpoint path first
+            try {
+              const response = await api.post("/messages/reply-anonymous", {
+                anonymousThreadId: thread.threadId,
+                message: messageText,
+              });
+              
+              console.log("Anonymous reply response:", response.data);
+              
+              // Refresh anonymous threads to include the reply
+              await fetchAnonymousThreads();
+              
+              toast.success("Anonymous reply sent", {
+                description: "Your reply has been sent anonymously.",
+              });
+            } catch (prefixError: any) {
+              // If 404, try with alternative path
+              if (prefixError?.response?.status === 404) {
+                console.log("Trying alternative URL format for reply-anonymous");
+                
+                const altResponse = await api.post("/messages/reply-anonymous", {
+                  anonymousThreadId: thread.threadId,
+                  message: messageText,
+                });
+                
+                console.log("Alternative path reply response:", altResponse.data);
+                
+                // Refresh anonymous threads
+                await fetchAnonymousThreads();
+                
+                toast.success("Anonymous reply sent", {
+                  description: "Your reply has been sent anonymously.",
+                });
+              } else {
+                // Not a path issue, rethrow
+                throw prefixError;
+              }
+            }
+          } catch (error: any) {
+            console.error("Failed to reply to anonymous thread:", error?.response?.data || error);
+            
+            if (error?.response?.status === 404) {
+              toast.error("The reply-anonymous endpoint was not found", {
+                description: "There might be an issue with the API configuration.",
+              });
+            } else if (error?.response?.data?.message === "Anonymous thread not found") {
+              // Try to identify recipient and send as a new message
+              const recipientId = findRecipientIdFromThread(thread, user?._id || '');
+              
+              if (recipientId) {
+                console.log("Thread not found, creating new anonymous message to:", recipientId);
+                
+                // Create a new anonymous message to this recipient
+                await api.post("/messages", {
+                  recipientId: recipientId,
+                  message: messageText,
+                  isAnonymous: true,
+                });
+                
+                toast.success("Anonymous message sent", {
+                  description: "Your message has been sent as a new anonymous thread.",
+                });
+              } else {
+                toast.error("Couldn't identify the recipient for this anonymous thread", {
+                  description: "Please start a new anonymous message instead.",
+                });
+              }
+            } else {
+              toast.error("Failed to send anonymous reply", {
+                description: error?.response?.data?.message || "Please try again later",
+              });
+            }
+          }
           
           setMessageText("")
           setIsSending(false)
           return
         } else {
           actualRecipientId = recipientId
+          
+          // Check if there's an existing anonymous thread with this recipient
+          const existingThreads = anonymousThreads.filter(thread => {
+            // Check if this thread contains messages to/from the recipient
+            return thread.messages.some(msg => {
+              // If the recipient is in this message
+              if (typeof msg.recipient === 'object' && msg.recipient?._id === actualRecipientId) {
+                return true;
+              }
+              if (typeof msg.recipient === 'string' && msg.recipient === actualRecipientId) {
+                return true;
+              }
+              // If the sender of this message is the recipient
+              if (msg.sender && msg.sender._id === actualRecipientId) {
+                return true;
+              }
+              return false;
+            });
+          });
+          
+          // If multiple threads exist (shouldn't normally happen), use the most recent one
+          if (existingThreads.length > 0) {
+            // Sort by last activity (most recent first)
+            existingThreads.sort((a, b) => 
+              new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime()
+            );
+            anonymousThreadId = existingThreads[0].threadId;
+            console.log("Using existing anonymous thread:", anonymousThreadId);
+          }
         }
 
-        if (!actualRecipientId) return
+        if (!actualRecipientId && !anonymousThreadId) return;
 
-        // Send anonymous message to server
-        await api.post("/messages", {
-          recipientId: actualRecipientId,
-          message: messageText,
-          isAnonymous: true,
-        })
+        try {
+          // Send anonymous message to server
+          if (anonymousThreadId) {
+            console.log("Sending anonymous message using existing thread:", anonymousThreadId);
+            
+            try {
+              // Try primary endpoint path
+              try {
+                const response = await api.post("/messages/reply-anonymous", {
+                  anonymousThreadId: anonymousThreadId,
+                  message: messageText,
+                });
+                
+                console.log("Anonymous reply response:", response.data);
+                
+                toast.success("Anonymous message sent", {
+                  description: "Your message has been sent anonymously to the existing thread.",
+                });
+              } catch (prefixError: any) {
+                // If 404, try alternative path
+                if (prefixError?.response?.status === 404) {
+                  console.log("Trying alternative URL format for reply-anonymous");
+                  
+                  const altResponse = await api.post("/messages/reply-anonymous", {
+                    anonymousThreadId: anonymousThreadId,
+                    message: messageText,
+                  });
+                  
+                  console.log("Alternative path reply response:", altResponse.data);
+                  
+                  toast.success("Anonymous message sent", {
+                    description: "Your message has been sent anonymously to the existing thread.",
+                  });
+                } else {
+                  // Not a path issue, rethrow
+                  throw prefixError;
+                }
+              }
+            } catch (error: any) {
+              console.error("Failed to send anonymous message:", error?.response?.data || error);
+              
+              if (error?.response?.status === 404) {
+                toast.error("The reply-anonymous endpoint was not found", {
+                  description: "There might be an issue with the API configuration.",
+                });
+                
+                // Try falling back to regular anonymous message
+                if (actualRecipientId) {
+                  try {
+                    console.log("Falling back to standard anonymous message for:", actualRecipientId);
+                    
+                    await api.post("/messages", {
+                      recipientId: actualRecipientId,
+                      message: messageText,
+                      isAnonymous: true,
+                    });
+                    
+                    toast.success("Anonymous message sent", {
+                      description: "Your message was sent as a new anonymous thread.",
+                    });
+                  } catch (innerError) {
+                    console.error("Failed to create new anonymous thread:", innerError);
+                    toast.error("Failed to send anonymous message", {
+                      description: "Please try again later",
+                    });
+                  }
+                }
+              } else if (error?.response?.data?.message === "Anonymous thread not found" && actualRecipientId) {
+                try {
+                  console.log("Thread not found, creating new thread to:", actualRecipientId);
+                  
+                  await api.post("/messages", {
+                    recipientId: actualRecipientId,
+                    message: messageText,
+                    isAnonymous: true,
+                  });
+                  
+                  toast.success("Anonymous message sent", {
+                    description: "Created a new anonymous thread for your message.",
+                  });
+                } catch (innerError) {
+                  console.error("Failed to create new anonymous thread:", innerError);
+                  toast.error("Failed to send anonymous message", {
+                    description: "Please try again later",
+                  });
+                }
+              } else {
+                toast.error("Failed to send anonymous message", {
+                  description: error?.response?.data?.message || "Please try again later",
+                });
+              }
+            }
+          } else {
+            console.log("Creating new anonymous thread to recipient:", actualRecipientId);
+            
+            // Otherwise create a new thread
+            await api.post("/messages", {
+              recipientId: actualRecipientId,
+              message: messageText,
+              isAnonymous: true,
+            });
+            
+            toast.success("Anonymous message sent", {
+              description: "Your message has been sent anonymously.",
+            });
+          }
+        } catch (error: any) {
+          console.error("Failed to send anonymous message:", error?.response?.data || error);
+          
+          if (error?.response?.status === 404) {
+            toast.error("The reply-anonymous endpoint was not found", {
+              description: "There might be an issue with the API configuration.",
+            });
+            
+            // Try falling back to regular anonymous message
+            if (actualRecipientId) {
+              try {
+                console.log("Falling back to standard anonymous message for:", actualRecipientId);
+                
+                await api.post("/messages", {
+                  recipientId: actualRecipientId,
+                  message: messageText,
+                  isAnonymous: true,
+                });
+                
+                toast.success("Anonymous message sent", {
+                  description: "Your message was sent as a new anonymous thread.",
+                });
+              } catch (innerError) {
+                console.error("Failed to create new anonymous thread:", innerError);
+                toast.error("Failed to send anonymous message", {
+                  description: "Please try again later",
+                });
+              }
+            }
+          } else if (error?.response?.data?.message === "Anonymous thread not found" && actualRecipientId) {
+            try {
+              console.log("Thread not found, creating new thread to:", actualRecipientId);
+              
+              await api.post("/messages", {
+                recipientId: actualRecipientId,
+                message: messageText,
+                isAnonymous: true,
+              });
+              
+              toast.success("Anonymous message sent", {
+                description: "Created a new anonymous thread for your message.",
+              });
+            } catch (innerError) {
+              console.error("Failed to create new anonymous thread:", innerError);
+              toast.error("Failed to send anonymous message", {
+                description: "Please try again later",
+              });
+            }
+          } else {
+            toast.error("Failed to send anonymous message", {
+              description: error?.response?.data?.message || "Please try again later",
+            });
+          }
+        }
 
         // Refresh anonymous threads to include the new message
-        await fetchAnonymousThreads()
-
-        toast.success("Anonymous message sent", {
-          description: "Your message has been sent anonymously.",
-        })
+        await fetchAnonymousThreads();
       }
 
       setMessageText("")
@@ -683,9 +985,25 @@ export default function Messages() {
                       ) : anonymousThreads.length > 0 ? (
                         <div className="space-y-0.5">
                           {anonymousThreads.map((thread, i) => {
-                            const lastMessage = thread.messages[thread.messages.length - 1]
-                            // For anonymous threads, always display as "Anonymous"
-                            const displayName = "Anonymous User"
+                            const lastMessage = thread.messages[thread.messages.length - 1];
+                            let displayName = "Anonymous User";
+                            
+                            // Find the other person in this thread
+                            if (thread.isInitiatedByMe) {
+                              // If I started this thread, find who I sent it to
+                              const recipientInfo = thread.messages.find(msg => 
+                                msg.sender && msg.sender._id === user?._id && msg.recipient
+                              )?.recipient;
+                              
+                              if (recipientInfo && typeof recipientInfo === 'object') {
+                                displayName = `To: ${recipientInfo.name}`;
+                              } else {
+                                displayName = "To: Anonymous User";
+                              }
+                            } else {
+                              // If someone else started this thread with me
+                              displayName = "From: Anonymous User";
+                            }
 
                             return (
                               <div
@@ -880,7 +1198,23 @@ export default function Messages() {
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <CardTitle>Anonymous Chat</CardTitle>
+                        {/* Show the recipient's name for threads I initiated, otherwise show "Anonymous Chat" */}
+                        {anonymousThreads[selectedAnonymousThread].isInitiatedByMe ? (
+                          (() => {
+                            // Find the recipient's info if available
+                            const recipientInfo = anonymousThreads[selectedAnonymousThread].messages.find(msg => 
+                              msg.sender && msg.sender._id === user?._id && msg.recipient
+                            )?.recipient;
+                            
+                            if (recipientInfo && typeof recipientInfo === 'object') {
+                              return <CardTitle>Anonymous Chat with {recipientInfo.name}</CardTitle>;
+                            } else {
+                              return <CardTitle>Anonymous Chat</CardTitle>;
+                            }
+                          })()
+                        ) : (
+                          <CardTitle>Anonymous Chat</CardTitle>
+                        )}
                         <CardDescription>
                           {anonymousThreads[selectedAnonymousThread].messages.length} messages
                         </CardDescription>
@@ -907,12 +1241,12 @@ export default function Messages() {
                         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
                         .map((message, index) => {
                           // For anonymous messages, we need to determine if the current user is the sender or recipient
-                          const isFromMe = message.sender && message.sender._id === user?._id
+                          const isFromMe = message.sender && message.sender._id === user?._id;
 
                           return (
                             <div
                               key={`msg-${message._id}-${index}`}
-                              className={`flex items-start ${!isFromMe ? "gap-3" : "justify-end gap-3"}`}
+                              className={`flex items-start ${isFromMe ? "justify-end" : ""} gap-3`}
                             >
                               {!isFromMe && (
                                 <Avatar className="mt-1 h-8 w-8 border bg-violet-200 dark:bg-violet-800">
@@ -928,7 +1262,7 @@ export default function Messages() {
                               >
                                 <div className="mb-1 text-xs font-medium text-violet-500 dark:text-violet-400 flex items-center gap-1">
                                   <EyeOff className="h-3 w-3" />
-                                  Anonymous
+                                  {isFromMe ? "You (Anonymous)" : "Anonymous"}
                                 </div>
                                 <p className="text-sm">{message.message}</p>
                                 <span
