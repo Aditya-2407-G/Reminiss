@@ -1,10 +1,11 @@
 import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
-import { Link } from "react-router"
+import { Link, useNavigate } from "react-router"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown, Search, User, Plus, X } from "lucide-react"
 import api from "~/lib/api"
+import { useAuth } from "~/contexts/AuthContext"
 
 // Function to format Google Drive URLs for direct image access
 const formatImageUrl = (url: string) => {
@@ -26,6 +27,11 @@ import { Badge } from "~/components/ui/badge"
 import { ScrollArea } from "~/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import Header from "~/components/Header/Header"
+import { Label } from "~/components/ui/label"
+import { Spinner } from "~/components/ui/spinner"
+import { EntryModal } from "~/components/yearbook/EntryModal"
+
+const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
 
 interface Entry {
   _id: string
@@ -73,6 +79,13 @@ export default function Yearbook() {
   const [selectedEnrollment, setSelectedEnrollment] = useState<string | null>(null)
   const [filterOpen, setFilterOpen] = useState(false)
   const [view, setView] = useState<"grid" | "list">("grid")
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const [showEntryModal, setShowEntryModal] = useState(false)
+  
+  const handleEntrySuccess = () => {
+    fetchEntries()
+  }
 
   const scrollToGrid = () => {
     gridRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -102,7 +115,25 @@ export default function Yearbook() {
       }, 100); // Small delay to ensure elements are rendered
     }
   }
-
+  
+  const handleAddEntry = () => {
+    if (!user) {
+      navigate('/login')
+      return
+    }
+    
+    // Check if user already has an entry
+    const userEntry = entries.find(entry => entry?.user._id === user._id)
+    
+    if (userEntry) {
+      // User already has an entry, select it to show details
+      setSelectedEntry(userEntry)
+    } else {
+      // User doesn't have an entry, show the modal form
+      setShowEntryModal(true)
+    }
+  }
+  
   useEffect(() => {
     fetchEntries()
   }, [])
@@ -165,12 +196,10 @@ export default function Yearbook() {
                 size="lg"
                 variant="outline"
                 className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                asChild
+                onClick={handleAddEntry}
               >
-                <Link to="/yearbook/new">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Your Entry
-                </Link>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Your Entry
               </Button>
             </motion.div>
           </motion.div>
@@ -437,12 +466,6 @@ export default function Yearbook() {
                           </div>
                         )}
 
-                        <div>
-                          <h3 className="text-lg font-medium">College & Degree</h3>
-                          <p className="text-muted-foreground">
-                            {selectedEntry.college.name} • {selectedEntry.degree}
-                          </p>
-                        </div>
                       </div>
                     </ScrollArea>
 
@@ -458,6 +481,12 @@ export default function Yearbook() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <EntryModal 
+        isOpen={showEntryModal}
+        onClose={() => setShowEntryModal(false)}
+        onSuccess={handleEntrySuccess}
+      />
     </div>
   )
 }

@@ -180,10 +180,29 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     );
 });
 
+const getUserClassmates = asyncHandler(async (req, res) => {
+  // Get all users from the same batch as the current user, excluding the current user
+  const classmates = await User.find({
+    batch: req.user.batch,
+    _id: { $ne: req.user._id }
+  }).select("_id name profilePicture enrollmentNumber");
+
+  if (!classmates || classmates.length === 0) {
+    return res
+      .status(200)
+      .json(new ApiResponse(200, [], "No classmates found"));
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, classmates, "Classmates fetched successfully"));
+});
+
 export {
   registerUser,
   loginUser,
   logoutUser,
   getCurrentUser,
   updateUserProfile,
+  getUserClassmates
 }; 

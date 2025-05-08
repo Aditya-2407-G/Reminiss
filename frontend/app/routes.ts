@@ -7,7 +7,7 @@ export default [
   route("login", "routes/login.tsx"),
   route("register", "routes/register.tsx"),
   route("dashboard", "routes/dashboard.tsx"),
-  route("entries/new", "routes/entries.new.tsx"),
+  // route("yearbook/new", "routes/yearbook.new.tsx"),
 //   route("entries/:id", "routes/entries.$id.tsx"),
   route("montage", "routes/montage.tsx"),
   route("messages", "routes/messages.tsx"),

@@ -5,6 +5,7 @@ import {
   logoutUser,
   getCurrentUser,
   updateUserProfile,
+  getUserClassmates
 } from "../controllers/user.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
@@ -18,5 +19,8 @@ router.post("/logout", verifyJWT, logoutUser);
 // User profile routes
 router.get("/me", verifyJWT, getCurrentUser);
 router.patch("/profile", verifyJWT, updateUserProfile);
+
+// Classmates route
+router.get("/classmates", verifyJWT, getUserClassmates);
 
 export default router; 
