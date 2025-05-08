@@ -130,7 +130,7 @@ export default function Messages() {
       const receivedMessages = receivedResponse?.data?.data || []
 
       // Filter out messages that belong to anonymous threads
-      const regularReceivedMessages = receivedMessages.filter((msg) => !msg.isAnonymous && !msg.anonymousThreadId)
+      const regularReceivedMessages = receivedMessages.filter((msg:Message) => !msg.isAnonymous && !msg.anonymousThreadId)
 
       // Mark received messages (these are sent by others)
       const taggedReceivedMessages = regularReceivedMessages.map((msg: Message) => ({
@@ -143,7 +143,7 @@ export default function Messages() {
       const sentMessages = sentResponse?.data?.data || []
 
       // Filter out messages that belong to anonymous threads
-      const regularSentMessages = sentMessages.filter((msg) => !msg.isAnonymous && !msg.anonymousThreadId && !msg.isReplyToAnonymous)
+      const regularSentMessages = sentMessages.filter((msg:Message) => !msg.isAnonymous && !msg.anonymousThreadId && !msg.isReplyToAnonymous)
 
       // Mark sent messages (these are sent by current user)
       const taggedSentMessages = regularSentMessages.map((msg: Message) => ({
@@ -313,7 +313,7 @@ export default function Messages() {
       setIsSending(true)
 
       // Handle sending a regular message
-      if (activeTab === "regular") {
+      if (activeTab === "regular" && !isAnonymous) {
         // Get recipient ID - either from the selected conversation or the compose dialog
         let actualRecipientId = ""
         if (selectedConversation !== null) {
@@ -346,87 +346,98 @@ export default function Messages() {
           },
           message: messageText,
           isRead: true,
-          isAnonymous: isAnonymous,
+          isAnonymous: false,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           fromMe: true,
         }
 
-        // If sending an anonymous message from compose dialog
-        if (isAnonymous && selectedConversation === null) {
-          // Send message to server
-          const response = await api.post("/messages", {
+        const conversationId = getConversationId(user?._id || "", actualRecipientId)
+        const existingConvIndex = conversations.findIndex((conv) => conv.id === conversationId)
+
+        if (existingConvIndex !== -1) {
+          // Update existing conversation
+          setConversations((prev) =>
+            prev.map((conv, index) =>
+              index === existingConvIndex
+                ? {
+                    ...conv,
+                    lastMessage: messageText,
+                    time: formatDistanceToNow(new Date(), { addSuffix: true }),
+                    messages: [...conv.messages, tempMessage],
+                  }
+                : conv,
+            ),
+          )
+        } else {
+          // Create new conversation
+          const newConversation = {
+            id: conversationId,
             recipientId: actualRecipientId,
-            message: messageText,
-            isAnonymous: true,
-          })
-
-          // Refresh anonymous threads to include the new message
-          await fetchAnonymousThreads()
-
-          toast.success("Anonymous message sent", {
-            description: "Your message has been sent anonymously.",
-          })
-        }
-        // If sending a regular message
-        else {
-          const conversationId = getConversationId(user?._id || "", actualRecipientId)
-          const existingConvIndex = conversations.findIndex((conv) => conv.id === conversationId)
-
-          if (existingConvIndex !== -1) {
-            // Update existing conversation
-            setConversations((prev) =>
-              prev.map((conv, index) =>
-                index === existingConvIndex
-                  ? {
-                      ...conv,
-                      lastMessage: messageText,
-                      time: formatDistanceToNow(new Date(), { addSuffix: true }),
-                      messages: [...conv.messages, tempMessage],
-                    }
-                  : conv,
-              ),
-            )
-          } else {
-            // Create new conversation
-            const newConversation = {
-              id: conversationId,
-              recipientId: actualRecipientId,
-              name: recipientName,
-              avatar: recipientAvatar,
-              lastMessage: messageText,
-              time: formatDistanceToNow(new Date(), { addSuffix: true }),
-              unread: 0,
-              isAnonymous: false,
-              messages: [tempMessage],
-            }
-
-            setConversations((prev) => [newConversation, ...prev])
+            name: recipientName,
+            avatar: recipientAvatar,
+            lastMessage: messageText,
+            time: formatDistanceToNow(new Date(), { addSuffix: true }),
+            unread: 0,
+            isAnonymous: false,
+            messages: [tempMessage],
           }
 
-          // Send message to server
-          await api.post("/messages", {
-            recipientId: actualRecipientId,
-            message: messageText,
-            isAnonymous: false,
-          })
+          setConversations((prev) => [newConversation, ...prev])
         }
-      }
-      // Handle replying to an anonymous message
-      else if (activeTab === "anonymous" && selectedAnonymousThread !== null) {
-        const thread = anonymousThreads[selectedAnonymousThread]
 
-        // Send reply to anonymous message
-        await api.post("/messages/reply-anonymous", {
-          anonymousThreadId: thread.threadId,
+        // Send message to server
+        await api.post("/messages", {
+          recipientId: actualRecipientId,
           message: messageText,
+          isAnonymous: false,
+        })
+      }
+      // Handle sending an anonymous message
+      else if ((activeTab === "regular" && isAnonymous) || activeTab === "anonymous") {
+        // If we're in the compose dialog or in the anonymous tab
+        let actualRecipientId = ""
+        
+        // Get recipient ID - either from selected conversation, selected anonymous thread, or compose dialog
+        if (selectedConversation !== null) {
+          actualRecipientId = conversations[selectedConversation].recipientId
+        } else if (selectedAnonymousThread !== null && activeTab === "anonymous") {
+          const thread = anonymousThreads[selectedAnonymousThread]
+          
+          // Send reply to anonymous message
+          await api.post("/messages/reply-anonymous", {
+            anonymousThreadId: thread.threadId,
+            message: messageText,
+          })
+
+          // Refresh anonymous threads to include the reply
+          await fetchAnonymousThreads()
+
+          toast.success("Anonymous reply sent", {
+            description: "Your reply has been sent anonymously.",
+          })
+          
+          setMessageText("")
+          setIsSending(false)
+          return
+        } else {
+          actualRecipientId = recipientId
+        }
+
+        if (!actualRecipientId) return
+
+        // Send anonymous message to server
+        await api.post("/messages", {
+          recipientId: actualRecipientId,
+          message: messageText,
+          isAnonymous: true,
         })
 
-        // Refresh anonymous threads to include the reply
+        // Refresh anonymous threads to include the new message
         await fetchAnonymousThreads()
 
-        toast.success("Reply sent", {
-          description: "Your reply to the anonymous message has been sent.",
+        toast.success("Anonymous message sent", {
+          description: "Your message has been sent anonymously.",
         })
       }
 
@@ -440,7 +451,7 @@ export default function Messages() {
       }
 
       // Refresh conversations and threads
-      if (activeTab === "regular") {
+      if (activeTab === "regular" && !isAnonymous) {
         await fetchConversations()
       } else {
         await fetchAnonymousThreads()
@@ -673,9 +684,8 @@ export default function Messages() {
                         <div className="space-y-0.5">
                           {anonymousThreads.map((thread, i) => {
                             const lastMessage = thread.messages[thread.messages.length - 1]
-                            const isFromMe = lastMessage.sender && lastMessage.sender._id === user?._id
-                            // Always display as "Anonymous" for threads that started anonymously
-                            const displayName = isFromMe ? "To: Anonymous" : "Anonymous"
+                            // For anonymous threads, always display as "Anonymous"
+                            const displayName = "Anonymous User"
 
                             return (
                               <div
@@ -686,7 +696,14 @@ export default function Messages() {
                                   setSelectedConversation(null)
                                   // Mark unread messages as read
                                   thread.messages
-                                    .filter((msg) => !msg.isRead && msg.recipient._id === user?._id)
+                                    .filter((msg) => {
+                                      if (!msg.isRead && msg.recipient) {
+                                        return typeof msg.recipient === 'object' 
+                                          ? msg.recipient._id === user?._id
+                                          : msg.recipient === user?._id;
+                                      }
+                                      return false;
+                                    })
                                     .forEach((msg) => markMessageAsRead(msg._id))
                                 }}
                               >
@@ -704,7 +721,7 @@ export default function Messages() {
                                   </div>
                                   <p className="line-clamp-1 text-sm text-muted-foreground">{lastMessage.message}</p>
                                 </div>
-                                {thread.messages.some((msg) => !msg.isRead && msg.recipient._id === user?._id) && (
+                                {thread.messages.some((msg) => !msg.isRead && (typeof msg.recipient === 'object' ? msg.recipient._id === user?._id : msg.recipient === user?._id)) && (
                                   <Badge className="ml-auto flex h-5 w-5 items-center justify-center rounded-full p-0 bg-violet-600">
                                     !
                                   </Badge>
@@ -863,7 +880,7 @@ export default function Messages() {
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <CardTitle>Anonymous Thread</CardTitle>
+                        <CardTitle>Anonymous Chat</CardTitle>
                         <CardDescription>
                           {anonymousThreads[selectedAnonymousThread].messages.length} messages
                         </CardDescription>
@@ -891,7 +908,6 @@ export default function Messages() {
                         .map((message, index) => {
                           // For anonymous messages, we need to determine if the current user is the sender or recipient
                           const isFromMe = message.sender && message.sender._id === user?._id
-                          const isAnonymousToMe = message.isAnonymous && message.recipient._id === user?._id
 
                           return (
                             <div
@@ -901,11 +917,7 @@ export default function Messages() {
                               {!isFromMe && (
                                 <Avatar className="mt-1 h-8 w-8 border bg-violet-200 dark:bg-violet-800">
                                   <AvatarFallback>
-                                    {isAnonymousToMe ? (
-                                      <EyeOff className="h-4 w-4" />
-                                    ) : (
-                                      getInitials(message.sender?.name || "")
-                                    )}
+                                    <EyeOff className="h-4 w-4" />
                                   </AvatarFallback>
                                 </Avatar>
                               )}
@@ -914,18 +926,10 @@ export default function Messages() {
                                   !isFromMe ? "bg-violet-100/80 dark:bg-violet-900/30" : "bg-violet-600 text-white"
                                 }`}
                               >
-                                {message.isAnonymous && (
-                                  <div className="mb-1 text-xs font-medium text-violet-500 dark:text-violet-400 flex items-center gap-1">
-                                    <EyeOff className="h-3 w-3" />
-                                    Anonymous
-                                  </div>
-                                )}
-                                {message.isReplyToAnonymous && (
-                                  <div className="mb-1 text-xs font-medium text-violet-500 dark:text-violet-400 flex items-center gap-1">
-                                    <Reply className="h-3 w-3" />
-                                    Reply to Anonymous
-                                  </div>
-                                )}
+                                <div className="mb-1 text-xs font-medium text-violet-500 dark:text-violet-400 flex items-center gap-1">
+                                  <EyeOff className="h-3 w-3" />
+                                  Anonymous
+                                </div>
                                 <p className="text-sm">{message.message}</p>
                                 <span
                                   className={`mt-1 text-xs ${!isFromMe ? "text-muted-foreground" : "text-white/70"}`}
@@ -934,9 +938,10 @@ export default function Messages() {
                                 </span>
                               </div>
                               {isFromMe && (
-                                <Avatar className="mt-1 h-8 w-8 border">
-                                  <AvatarImage src={user?.profilePicture || "/placeholder.svg"} alt={user?.name} />
-                                  <AvatarFallback>{getInitials(user?.name || "")}</AvatarFallback>
+                                <Avatar className="mt-1 h-8 w-8 border bg-violet-200 dark:bg-violet-800">
+                                  <AvatarFallback>
+                                    <EyeOff className="h-4 w-4" />
+                                  </AvatarFallback>
                                 </Avatar>
                               )}
                             </div>
@@ -948,7 +953,7 @@ export default function Messages() {
                   <CardFooter className="p-4">
                     <div className="flex w-full items-center gap-2">
                       <Input
-                        placeholder="Reply to this thread..."
+                        placeholder="Reply anonymously..."
                         className="flex-1 border-violet-200 dark:border-violet-900/50"
                         value={messageText}
                         onChange={(e) => setMessageText(e.target.value)}
@@ -1087,21 +1092,19 @@ export default function Messages() {
             </div>
             <div className="flex items-center space-x-2">
               <Switch id="anonymous" checked={isAnonymous} onCheckedChange={setIsAnonymous} />
-              <Label htmlFor="anonymous">Send anonymously</Label>
+              <Label htmlFor="anonymous" className="font-medium">Send anonymously</Label>
             </div>
-            {user && (
-              <div className="text-xs text-muted-foreground mt-2">
-                {isAnonymous ? (
-                  <>
-                    <span className="font-medium text-amber-600">Sending anonymously</span>
-                    <br />
-                    <span className="italic">Recipient won't see your name or info</span>
-                  </>
-                ) : (
-                  <>Sending as: {user.name}</>
-                )}
-              </div>
-            )}
+            <div className="text-xs text-muted-foreground mt-2">
+              {isAnonymous ? (
+                <>
+                  <span className="font-medium text-amber-600">Sending anonymously</span>
+                  <br />
+                  <span className="italic">Your identity will be hidden from the recipient</span>
+                </>
+              ) : (
+                <>Sending as: {user?.name}</>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -1111,7 +1114,7 @@ export default function Messages() {
               onClick={handleSendMessage}
             >
               {isSending ? <Spinner className="mr-2 h-4 w-4" /> : null}
-              Send Whisper
+              {isAnonymous ? "Send Anonymous Whisper" : "Send Whisper"}
             </Button>
           </DialogFooter>
         </DialogContent>
