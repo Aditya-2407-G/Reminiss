@@ -19,8 +19,6 @@ export function UserNav() {
 
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
-  console.log(user)
-
   const handleLogout = async () => {
     try {
         await logout();

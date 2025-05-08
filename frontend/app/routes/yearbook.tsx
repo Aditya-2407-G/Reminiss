@@ -12,35 +12,8 @@ const formatImageUrl = (url: string) => {
   
   // Handle Google Drive links
   if (url.includes('drive.google.com')) {
-    // Extract the file ID from the URL - handles both id= and /d/ formats
-    let fileId;
-    const idMatch = url.match(/[?&]id=([^&]+)/);
-    if (idMatch && idMatch[1]) {
-      fileId = idMatch[1];
-    } else {
-      const pathMatch = url.match(/\/d\/([^/]+)/);
-      if (pathMatch && pathMatch[1]) {
-        fileId = pathMatch[1];
-      }
-    }
-    
-    if (fileId) {
-      // Return in the requested format
-      return `https://drive.google.com/uc?id=${fileId}`;
-    }
-  }
-  
-  return url;
-}
-
-// Add this function to your code
-const getImageProxyUrl = (url: string) => {
-  if (!url) return '';
-  
-  // For Google Drive links
-  if (url.includes('drive.google.com')) {
-    // Use an image proxy service to bypass Google's restrictions
-    return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&default=https://ui-avatars.com/api/?name=No+Image`;
+    // Use our custom backend proxy endpoint
+    return `/api/images/proxy?url=${encodeURIComponent(url)}`;
   }
   
   return url;
@@ -268,7 +241,7 @@ export default function Yearbook() {
                             <div className="relative aspect-[3/4] overflow-hidden rounded-lg border">
                               {entry ? (
                                 <img 
-                                  src={getImageProxyUrl(entry.imageUrl)}
+                                  src={formatImageUrl(entry.imageUrl)}
                                   alt={entry.user.name}
                                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                                   loading="lazy"
@@ -328,7 +301,7 @@ export default function Yearbook() {
                             <div className="h-16 w-16 rounded-md overflow-hidden flex-shrink-0">
                               {entry ? (
                                 <img 
-                                  src={getImageProxyUrl(entry.imageUrl)} 
+                                  src={formatImageUrl(entry.imageUrl)} 
                                   alt={entry.user.name}
                                   className="h-full w-full object-cover"
                                   onError={(e) => {
@@ -401,7 +374,7 @@ export default function Yearbook() {
                 <div className="grid md:grid-cols-2">
                   <div className="relative h-full">
                     <img
-                      src={getImageProxyUrl(selectedEntry.imageUrl)}
+                      src={formatImageUrl(selectedEntry.imageUrl)}
                       alt={selectedEntry.user.name}
                       className="w-full h-full object-cover md:h-[600px]"
                       onError={(e) => {

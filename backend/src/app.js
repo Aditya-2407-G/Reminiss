@@ -12,6 +12,7 @@ import montageRoutes from './routes/montage.routes.js';
 import collegeRoutes from './routes/college.routes.js';
 import privateMessageRoutes from './routes/privateMessage.routes.js';
 import authRoutes from './routes/auth.routes.js';
+import imageProxyRoutes from './routes/imageProxy.routes.js';
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use('/api/entries', entryRoutes);
 app.use('/api/montages', montageRoutes);
 app.use('/api/admin/colleges', collegeRoutes);
 app.use('/api/messages', privateMessageRoutes);
+app.use('/api/images', imageProxyRoutes);
 
 // Token expiration middleware
 app.use((err, req, res, next) => {
