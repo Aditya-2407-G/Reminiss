@@ -22,7 +22,7 @@ export default function NewEntry() {
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { isAuthenticated } = useAuth();
+  const auth = useAuth();
   const navigate = useNavigate();
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,6 +76,13 @@ export default function NewEntry() {
       setError(`Failed to prepare image: ${err.message || 'Unknown error'}`);
       setIsUploading(false);
       setImageFile(null);
+    }
+  };
+
+  const handleFileButtonClick = () => {
+    // Safely access the current property of the ref
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
     }
   };
 
@@ -201,7 +208,7 @@ export default function NewEntry() {
                     <Button 
                       type="button" 
                       variant="outline" 
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={handleFileButtonClick}
                     >
                       Select Image
                     </Button>

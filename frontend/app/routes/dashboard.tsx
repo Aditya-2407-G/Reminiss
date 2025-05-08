@@ -93,17 +93,11 @@ export default function Dashboard() {
 
                 // Safely access entries data with fallbacks
                 let entriesData = [];
-                if (
-                    response.data.data &&
-                    Array.isArray(response.data.data.entries)
-                ) {
+                if (response?.data?.data && Array.isArray(response.data.data.entries)) {
                     entriesData = response.data.data.entries;
-                } else if (
-                    response.data.data &&
-                    Array.isArray(response.data.data)
-                ) {
+                } else if (response?.data?.data && Array.isArray(response.data.data)) {
                     entriesData = response.data.data;
-                } else if (Array.isArray(response.data)) {
+                } else if (Array.isArray(response?.data)) {
                     entriesData = response.data;
                 }
 
@@ -119,7 +113,7 @@ export default function Dashboard() {
         const fetchMessages = async () => {
             try {
                 const response = await api.get("/messages");
-                setMessages(response.data.data || []);
+                setMessages(response?.data?.data || []);
             } catch (error) {
                 console.error("Failed to fetch messages:", error);
                 setMessages([]);
@@ -159,7 +153,7 @@ export default function Dashboard() {
         return null; // Will be redirected by the useEffect
     }
 
-    const getInitials = (name) => {
+    const getInitials = (name: string | undefined | null): string => {
         if (!name || typeof name !== "string") return "U";
         return name
             .split(" ")
@@ -186,9 +180,9 @@ export default function Dashboard() {
                 <div className="p-4 border-b border-violet-100 dark:border-violet-900/50">
                     <div className="flex items-center gap-3 mb-3">
                         <Avatar className="h-10 w-10">
-                            <AvatarImage src={user?.profilePicture} alt={user?.name} />
+                            <AvatarImage src={user?.profilePicture} alt={user?.name || "User"} />
                             <AvatarFallback>
-                                {getInitials(typeof user?.name === "string" ? user.name : "")}
+                                {getInitials(user?.name)}
                             </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
@@ -523,7 +517,7 @@ export default function Dashboard() {
                                         <div className="flex justify-center py-8">
                                             <Spinner />
                                         </div>
-                                    ) : messages.length > 0 ? (
+                                    ) : messages && messages.length > 0 ? (
                                         <div className="space-y-3">
                                             {messages.slice(0, 3).map((message, i) => (
                                                 <div
@@ -532,22 +526,22 @@ export default function Dashboard() {
                                                 >
                                                     <Avatar>
                                                         <AvatarFallback>
-                                                            {getInitials(message.sender || "Anonymous")}
+                                                            {getInitials(message?.sender || "Anonymous")}
                                                         </AvatarFallback>
                                                     </Avatar>
                                                     <div className="flex-1 space-y-1">
                                                         <div className="flex items-center justify-between">
                                                             <p className="text-sm font-medium">
-                                                                {typeof message.sender === "object"
-                                                                    ? message.sender?.name
-                                                                    : message.sender || "Anonymous"}
+                                                                {typeof message?.sender === "object"
+                                                                    ? message?.sender?.name
+                                                                    : message?.sender || "Anonymous"}
                                                             </p>
                                                             <span className="text-xs text-muted-foreground">
-                                                                {message.date || "Recently"}
+                                                                {message?.date || "Recently"}
                                                             </span>
                                                         </div>
                                                         <p className="text-sm text-muted-foreground line-clamp-2">
-                                                            {message.content || "No message content"}
+                                                            {message?.content || "No message content"}
                                                         </p>
                                                     </div>
                                                 </div>

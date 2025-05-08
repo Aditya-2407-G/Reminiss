@@ -9,7 +9,33 @@ import { Switch } from "./switch"
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
   
-  const isChecked = theme === "dark"
+  const [effectiveTheme, setEffectiveTheme] = React.useState<"dark" | "light">(
+    theme === "system"
+      ? typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light"
+      : theme as "dark" | "light"
+  )
+  
+  // Update effective theme when theme changes or system preference changes
+  React.useEffect(() => {
+    if (theme !== "system") {
+      setEffectiveTheme(theme as "dark" | "light")
+      return
+    }
+    
+    // Handle system theme
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
+    const updateTheme = () => {
+      setEffectiveTheme(mediaQuery.matches ? "dark" : "light")
+    }
+    
+    updateTheme()
+    mediaQuery.addEventListener("change", updateTheme)
+    return () => mediaQuery.removeEventListener("change", updateTheme)
+  }, [theme])
+  
+  const isChecked = effectiveTheme === "dark"
   
   const handleToggle = (checked: boolean) => {
     setTheme(checked ? "dark" : "light")
