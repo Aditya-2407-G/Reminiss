@@ -44,22 +44,29 @@ import {
   BookMarked,
   Users,
   Palette,
-  Menu,
-  X,
   BookmarkIcon,
   LayoutDashboard,
   Layers,
 } from "lucide-react"
+import Header from "~/components/Header/Header"
+
+interface Conversation {
+  id: number
+  name: string
+  avatar: string | null
+  lastMessage: string
+  time: string
+  unread: number
+  isAnonymous: boolean
+}
 
 export default function Messages() {
   const { user, isAuthenticated, isLoading, logout } = useAuth()
   const [selectedConversation, setSelectedConversation] = useState(0)
   const [composeOpen, setComposeOpen] = useState(false)
-  const [conversations, setConversations] = useState([])
+  const [conversations, setConversations] = useState<Conversation[]>([])
   const [isConversationsLoading, setIsConversationsLoading] = useState(true)
-  const [unreadNotifications, setUnreadNotifications] = useState(3)
   const [unreadMessages, setUnreadMessages] = useState(2)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
   const navigate = useNavigate()
 
   // Force recheck auth if needed
@@ -129,7 +136,7 @@ export default function Messages() {
     return null // Will be redirected by the useEffect
   }
 
-  const getInitials = (name) => {
+  const getInitials = (name: string | undefined): string => {
     if (!name || typeof name !== "string") return "U"
     return name
       .split(" ")
@@ -139,166 +146,12 @@ export default function Messages() {
   }
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-violet-200 via-indigo-100 to-background dark:from-violet-950/20 dark:via-background dark:to-background">
-      {/* Sidebar - Component */}
-      <aside
-        className={`fixed inset-y-0 z-50 flex flex-col w-64 border-r border-violet-100 dark:border-violet-900/50 bg-gradient-to-br from-background to-violet-100/70 dark:from-background dark:to-violet-950/20 transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
-      >
-        <div className="p-4 h-16 flex items-center justify-between border-b border-violet-100 dark:border-violet-900/50">
-          <Link to="/" className="flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-violet-500 dark:text-violet-400" />
-            <span className="text-xl font-bold">Reminiss</span>
-          </Link>
-          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSidebarOpen(false)}>
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
-
-        {/* User Profile Section */}
-        <div className="p-4 border-b border-violet-100 dark:border-violet-900/50">
-          <div className="flex items-center gap-3 mb-3">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={user?.profilePicture} alt={user?.name} />
-              <AvatarFallback>{getInitials(typeof user?.name === "string" ? user.name : "")}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium truncate">{user?.name || "Student"}</p>
-              <p className="text-xs text-muted-foreground">
-                {" "}
-                Class of{" "}
-                {user?.batch && typeof user.batch === "object"
-                  ? (user.batch as {batchYear?: string}).batchYear
-                  : user?.batch || "Unknown"}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-1">
-              <Users className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>148 Classmates</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Camera className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>73 Memories</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation Links */}
-        <nav className="flex-1 overflow-y-auto p-2">
-          <div className="space-y-1">
-            <Button variant="ghost" className="w-full justify-start" asChild>
-              <Link to="/dashboard" className="flex items-center gap-3 px-3 py-2">
-                <LayoutDashboard className="h-4 w-4" />
-                <span>Dashboard</span>
-              </Link>
-            </Button>
-            <Button variant="ghost" className="w-full justify-start" asChild>
-              <Link to="/entries" className="flex items-center gap-3 px-3 py-2">
-                <BookmarkIcon className="h-4 w-4" />
-                <span>Yearbook</span>
-              </Link>
-            </Button>
-            <Button variant="ghost" className="w-full justify-start" asChild>
-              <Link to="/montage" className="flex items-center gap-3 px-3 py-2">
-                <Layers className="h-4 w-4" />
-                <span>Memories</span>
-              </Link>
-            </Button>
-            <Button
-              variant={`ghost`}
-              className="w-full justify-start bg-violet-100/50 dark:bg-violet-900/20 text-violet-900 dark:text-violet-100"
-              asChild
-            >
-              <Link to="/messages" className="flex items-center gap-3 px-3 py-2">
-                <MessageSquare className="h-4 w-4" />
-                <span>Whispers</span>
-                {unreadMessages > 0 && <Badge className="ml-auto">{unreadMessages}</Badge>}
-              </Link>
-            </Button>
-          </div>
-
-          <Separator className="my-4" />
-
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground px-3 py-1">Create</p>
-            <Button variant="ghost" className="w-full justify-start" asChild>
-              <Link to="/entries/new" className="flex items-center gap-3 px-3 py-2">
-                <BookMarked className="h-4 w-4" />
-                <span>New Entry</span>
-              </Link>
-            </Button>
-            <Button variant="ghost" className="w-full justify-start" asChild>
-              <Link to="/montage/create" className="flex items-center gap-3 px-3 py-2">
-                <Palette className="h-4 w-4" />
-                <span>New Montage</span>
-              </Link>
-            </Button>
-            <Button variant="ghost" className="w-full justify-start" asChild>
-              <Link to="/messages/new" className="flex items-center gap-3 px-3 py-2">
-                <Mail className="h-4 w-4" />
-                <span>New Whisper</span>
-              </Link>
-            </Button>
-          </div>
-        </nav>
-
-        {/* Bottom Actions */}
-        <div className="p-4 border-t border-border">
-          <div className="space-y-2">
-            <Button variant="ghost" className="w-full justify-start" asChild>
-              <Link to="/profile" className="flex items-center gap-3">
-                <User className="h-4 w-4" />
-                <span>Profile</span>
-              </Link>
-            </Button>
-            <Button variant="ghost" className="w-full justify-start" asChild>
-              <Link to="/settings" className="flex items-center gap-3">
-                <Settings className="h-4 w-4" />
-                <span>Settings</span>
-              </Link>
-            </Button>
-            <Button variant="ghost" className="w-full justify-start text-red-500" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-3" />
-              <span>Log out</span>
-            </Button>
-          </div>
-        </div>
-      </aside>
-
-      {/* Mobile Overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-violet-200 via-indigo-100 to-background dark:from-violet-950/20 dark:via-background dark:to-background">
+      {/* Header */}
+      <Header />
 
       {/* Main Content */}
-      <div className="flex-1 md:ml-64">
-        {/* Top Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-violet-100 dark:border-violet-900/50 bg-background/95 px-4 sm:px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:border-t-0">
-          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSidebarOpen(true)}>
-            <Menu className="h-5 w-5" />
-          </Button>
-
-          <div className="flex-1 flex items-center gap-4 md:gap-8">
-            <div className="relative flex-1 max-w-md ml-2">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Search messages, classmates..."
-                className="pl-8 w-full border-violet-200 dark:border-violet-900/50 focus:ring-violet-500 dark:focus:ring-violet-400"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
-          </div>
-        </header>
-
+      <div className="flex-1">
         {/* Main Content Area */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 relative">
           {/* Decorative blurred circles */}
@@ -364,7 +217,7 @@ export default function Messages() {
                           onClick={() => setSelectedConversation(i)}
                         >
                           <Avatar className="h-10 w-10 border">
-                            {!conversation.isAnonymous ? <AvatarImage src={conversation.avatar} /> : null}
+                            {!conversation.isAnonymous ? <AvatarImage src={conversation.avatar || undefined} /> : null}
                             <AvatarFallback>
                               {conversation.isAnonymous ? "?" : getInitials(conversation.name)}
                             </AvatarFallback>
@@ -412,7 +265,7 @@ export default function Messages() {
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10 border">
                         {!conversations[selectedConversation]?.isAnonymous ? (
-                          <AvatarImage src={conversations[selectedConversation]?.avatar} />
+                          <AvatarImage src={conversations[selectedConversation]?.avatar || undefined} />
                         ) : null}
                         <AvatarFallback>
                           {conversations[selectedConversation]?.isAnonymous
@@ -458,7 +311,7 @@ export default function Messages() {
                       <div className="flex items-start gap-3">
                         <Avatar className="mt-1 h-8 w-8 border">
                           {!conversations[selectedConversation]?.isAnonymous ? (
-                            <AvatarImage src={conversations[selectedConversation]?.avatar} />
+                            <AvatarImage src={conversations[selectedConversation]?.avatar || undefined} />
                           ) : null}
                           <AvatarFallback>
                             {conversations[selectedConversation]?.isAnonymous
@@ -503,7 +356,7 @@ export default function Messages() {
                         <>
                           <div className="flex items-start gap-3">
                             <Avatar className="mt-1 h-8 w-8 border">
-                              <AvatarImage src={conversations[selectedConversation]?.avatar} />
+                              <AvatarImage src={conversations[selectedConversation]?.avatar || undefined} />
                               <AvatarFallback>{getInitials(conversations[selectedConversation]?.name)}</AvatarFallback>
                             </Avatar>
                             <div className="rounded-lg bg-violet-100/80 dark:bg-violet-900/30 p-3">

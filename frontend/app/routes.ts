@@ -12,4 +12,5 @@ export default [
   route("montage", "routes/montage.tsx"),
   route("messages", "routes/messages.tsx"),
   route("yearbook", "routes/yearbook.tsx"),
+  route("profile", "routes/profile.tsx"),
 ] satisfies RouteConfig;

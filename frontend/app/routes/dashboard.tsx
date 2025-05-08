@@ -66,7 +66,89 @@ import {
     Layers,
     Compass,
     Zap,
+    Plus,
 } from "lucide-react";
+import Header from "~/components/Header/Header";
+
+// Yearbook slideshow component
+const YearbookSlideshow = () => {
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    
+    const images = [
+        "/images/yearbook-preview-1.jpg",
+        "/images/yearbook-preview-2.jpg",
+        "/images/yearbook-preview-3.jpg",
+        "/images/yearbook-preview-4.jpg",
+    ];
+    
+    // Fallback images in case the real ones aren't available
+    const fallbackImages = [
+        "https://placehold.co/300x400/7438dd/ffffff?text=Yearbook+Preview",
+        "https://placehold.co/300x400/38dd74/ffffff?text=Class+Photos",
+        "https://placehold.co/300x400/dd7438/ffffff?text=School+Events",
+        "https://placehold.co/300x400/3874dd/ffffff?text=Memories",
+    ];
+    
+    // Animation effects for each slide (zoom and pan directions)
+    const slideEffects = [
+        { scale: "scale-[1.1]", translate: "translate-x-[2%] translate-y-[1%]" },
+        { scale: "scale-[1.08]", translate: "translate-x-[-1%] translate-y-[2%]" },
+        { scale: "scale-[1.12]", translate: "translate-x-[1%] translate-y-[-2%]" },
+        { scale: "scale-[1.09]", translate: "translate-x-[-2%] translate-y-[-1%]" },
+    ];
+    
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setCurrentImageIndex(prevIndex => 
+                prevIndex === images.length - 1 ? 0 : prevIndex + 1
+            );
+        }, 5000); // Change image every 5 seconds to give animations time to play
+        
+        return () => clearInterval(interval);
+    }, [images.length]);
+    
+    // Try to load the image, fall back to placeholders if it fails
+    const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+        e.currentTarget.src = fallbackImages[currentImageIndex];
+    };
+    
+    return (
+        <div className="w-full h-full relative overflow-hidden">
+            {/* Film grain overlay for a vintage video effect */}
+            <div className="absolute inset-0 opacity-[0.03] z-10 pointer-events-none bg-black/5 mix-blend-overlay"></div>
+            
+            {images.map((src, index) => {
+                const effect = slideEffects[index];
+                
+                return (
+                    <div 
+                        key={index}
+                        className={`absolute inset-0 w-full h-full transition-opacity duration-1500 overflow-hidden ${
+                            index === currentImageIndex ? "opacity-100" : "opacity-0"
+                        }`}
+                    >
+                        <img
+                            src={src}
+                            alt={`Yearbook preview ${index + 1}`}
+                            className={`w-[110%] h-[110%] object-cover transition-transform duration-10000 ease-out ${
+                                index === currentImageIndex 
+                                    ? `${effect.scale} ${effect.translate}` 
+                                    : "scale-100"
+                            }`}
+                            onError={handleImageError}
+                            style={{
+                                transformOrigin: index % 2 === 0 ? 'bottom left' : 'top right'
+                            }}
+                        />
+                    </div>
+                );
+            })}
+            
+            {/* Adding a subtle vignette effect for a cinematic look */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-black/20 via-transparent to-black/20 pointer-events-none"></div>
+        </div>
+    );
+};
 
 export default function Dashboard() {
     const { user, isAuthenticated, isLoading, logout } = useAuth();
@@ -93,9 +175,15 @@ export default function Dashboard() {
 
                 // Safely access entries data with fallbacks
                 let entriesData = [];
-                if (response?.data?.data && Array.isArray(response.data.data.entries)) {
+                if (
+                    response?.data?.data &&
+                    Array.isArray(response.data.data.entries)
+                ) {
                     entriesData = response.data.data.entries;
-                } else if (response?.data?.data && Array.isArray(response.data.data)) {
+                } else if (
+                    response?.data?.data &&
+                    Array.isArray(response.data.data)
+                ) {
                     entriesData = response.data.data;
                 } else if (Array.isArray(response?.data)) {
                     entriesData = response.data;
@@ -164,158 +252,10 @@ export default function Dashboard() {
 
     return (
         <div className="min-h-screen flex bg-gradient-to-br from-violet-200 via-indigo-100 to-background dark:from-violet-950/20 dark:via-background dark:to-background ">
-            {/* Sidebar - Component */}
-            <aside className={`fixed inset-y-0 z-50 flex flex-col w-64 border-r border-violet-100 dark:border-violet-900/50 bg-gradient-to-br from-background to-violet-100/70 dark:from-background dark:to-violet-950/20 transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}>
-            <div className="p-4 h-16 flex items-center justify-between border-b border-violet-100 dark:border-violet-900/50">
-            <Link to="/" className="flex items-center gap-2">
-                        <Sparkles className="h-6 w-6 text-violet-500 dark:text-violet-400" />
-                        <span className="text-xl font-bold">Reminiss</span>
-                    </Link>
-                    <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSidebarOpen(false)}>
-                        <X className="h-5 w-5" />
-                    </Button>
-                </div>
-                
-                {/* User Profile Section */}
-                <div className="p-4 border-b border-violet-100 dark:border-violet-900/50">
-                    <div className="flex items-center gap-3 mb-3">
-                        <Avatar className="h-10 w-10">
-                            <AvatarImage src={user?.profilePicture} alt={user?.name || "User"} />
-                            <AvatarFallback>
-                                {getInitials(user?.name)}
-                            </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{user?.name || "Student"}</p>
-                            <p className="text-xs text-muted-foreground"> Class of {user?.batch && typeof user.batch === 'object' ? (user.batch as {batchYear?: string}).batchYear : user?.batch || "Unknown"}</p>
-                        </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-1">
-                            <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>148 Classmates</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                            <Camera className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>73 Memories</span>
-                        </div>
-                    </div>
-                </div>
-                
-                {/* Navigation Links */}
-                <nav className="flex-1 overflow-y-auto p-2">
-                    <div className="space-y-1">
-                        <Button variant="ghost" className="w-full justify-start" asChild>
-                            <Link to="/dashboard" className="flex items-center gap-3 px-3 py-2">
-                                <LayoutDashboard className="h-4 w-4" />
-                                <span>Dashboard</span>
-                            </Link>
-                        </Button>
-                        <Button variant="ghost" className="w-full justify-start" asChild>
-                            <Link to="/yearbook" className="flex items-center gap-3 px-3 py-2">
-                                <BookmarkIcon className="h-4 w-4" />
-                                <span>Yearbook</span>
-                            </Link>
-                        </Button>
-                        <Button variant="ghost" className="w-full justify-start" asChild>
-                            <Link to="/montage" className="flex items-center gap-3 px-3 py-2">
-                                <Layers className="h-4 w-4" />
-                                <span>Memories</span>
-                            </Link>
-                        </Button>
-                        <Button variant="ghost" className="w-full justify-start" asChild>
-                            <Link to="/messages" className="flex items-center gap-3 px-3 py-2">
-                                <MessageSquare className="h-4 w-4" />
-                                <span>Whispers
-                                </span>
-                                {unreadMessages > 0 && (
-                                    <Badge className="ml-auto">{unreadMessages}</Badge>
-                                )}
-                            </Link>
-                        </Button>
-                    </div>
-                    
-                    <Separator className="my-4" />
-                    
-                    <div className="space-y-1">
-                        <p className="text-xs font-medium text-muted-foreground px-3 py-1">Create</p>
-                        <Button variant="ghost" className="w-full justify-start" asChild>
-                            <Link to="/entries/new" className="flex items-center gap-3 px-3 py-2">
-                                <BookMarked className="h-4 w-4" />
-                                <span>New Entry</span>
-                            </Link>
-                        </Button>
-                        <Button variant="ghost" className="w-full justify-start" asChild>
-                            <Link to="/montage/create" className="flex items-center gap-3 px-3 py-2">
-                                <Palette className="h-4 w-4" />
-                                <span>New Montage</span>
-                            </Link>
-                        </Button>
-                        <Button variant="ghost" className="w-full justify-start" asChild>
-                            <Link to="/messages/new" className="flex items-center gap-3 px-3 py-2">
-                                <Mail className="h-4 w-4" />
-                                <span>New Whisper</span>
-                            </Link>
-                        </Button>
-                    </div>
-                </nav>
-                
-                {/* Bottom Actions */}
-                <div className="p-4 border-t border-border">
-                    <div className="space-y-2">
-                        <Button variant="ghost" className="w-full justify-start" asChild>
-                            <Link to="/profile" className="flex items-center gap-3">
-                                <User className="h-4 w-4" />
-                                <span>Profile</span>
-                            </Link>
-                        </Button>
-                        <Button variant="ghost" className="w-full justify-start" asChild>
-                            <Link to="/settings" className="flex items-center gap-3">
-                                <Settings className="h-4 w-4" />
-                                <span>Settings</span>
-                            </Link>
-                        </Button>
-                        <Button variant="ghost" className="w-full justify-start text-red-500" onClick={handleLogout}>
-                            <LogOut className="h-4 w-4 mr-3" />
-                            <span>Log out</span>
-                        </Button>
-                    </div>
-                </div>
-            </aside>
-            
-            {/* Mobile Overlay */}
-            {sidebarOpen && (
-                <div 
-                    className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden"
-                    onClick={() => setSidebarOpen(false)}
-                />
-            )}
-
             {/* Main Content */}
-            <div className="flex-1 md:ml-64">
+            <div className="flex-1">
                 {/* Top Header */}
-                <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-violet-100 dark:border-violet-900/50 bg-background/95 px-4 sm:px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:border-t-0">
-                    <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSidebarOpen(true)}>
-                        <Menu className="h-5 w-5" />
-                    </Button>
-                    
-                    <div className="flex-1 flex items-center gap-4 md:gap-8">
-                        <div className="relative flex-1 max-w-md ml-2">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                type="search"
-                                placeholder="Search memories, classmates..."
-                                className="pl-8 w-full border-violet-200 dark:border-violet-900/50 focus:ring-violet-500 dark:focus:ring-violet-400"
-                            />
-                        </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-4">
-                        <ThemeToggle />
-                        
-                    </div>
-                </header>
+                <Header />
 
                 {/* Main Content Area */}
                 <main className="flex-1 p-4 sm:p-6 lg:p-8 relative">
@@ -324,53 +264,61 @@ export default function Dashboard() {
                         <div className="absolute top-10 right-10 w-72 h-72 bg-purple-400/40 dark:bg-purple-700/20 rounded-full blur-3xl"></div>
                         <div className="absolute bottom-10 left-10 w-72 h-72 bg-indigo-400/40 dark:bg-indigo-700/20 rounded-full blur-3xl"></div>
                     </div>
-                    
+
                     {/* Main Content Grid */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Digital Yearbook Card (full width) */}
-                        <div className="lg:col-span-3">
-                            <div className="relative overflow-hidden rounded-xl border border-violet-100 dark:border-violet-900/50 shadow-xl">
-                                <div className="h-64 w-full">
-                                    <img 
-                                        src="https://placehold.co/1000x400/7438dd/ffffff?text=Digital+Yearbook" 
-                                        alt="Yearbook Cover" 
-                                        className="h-full w-full object-cover"
-                                    />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end p-6">
-                                        <div className="max-w-md">
-                                            <Badge className="mb-2 bg-violet-600/80 hover:bg-violet-600 text-white">
-                                                Class of {new Date().getFullYear()}
-                                            </Badge>
-                                            <h2 className="text-2xl font-bold text-white mb-1">
-                                                Digital Yearbook
-                                            </h2>
-                                            <p className="text-white/80 text-sm mb-4">
-                                                Capture your high school journey with photos, quotes, and memories that will last a lifetime.
-                                            </p>
-                                            <div className="flex gap-3">
-                                                <Button 
-                                                    className="bg-white text-violet-600 hover:bg-white/90" 
-                                                    asChild
-                                                >
-                                                    <Link to={entries.length > 0 ? "/entries/me" : "/entries/new"}>
-                                                        {entries.length > 0 ? "View My Entry" : "Create Entry"}
-                                                    </Link>
-                                                </Button>
-                                                <Button 
-                                                    variant="outline" 
-                                                    className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                                                    asChild
-                                                >
-                                                    <Link to="/entries">
-                                                        Browse Entries
-                                                    </Link>
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div className="">
+
+
+<section className="mb-12">
+          <div className="rounded-xl bg-gradient-to-br from-violet-500/90 to-indigo-500/90 p-8 md:p-10 text-white relative overflow-hidden">
+            <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,transparent,rgba(255,255,255,0.7))]" />
+            <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+            <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-white/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3" />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+              <div className="space-y-6">
+                <div className="inline-flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full text-sm">
+                  <BookOpen className="h-3.5 w-3.5" />
+                  <span>Digital Yearbook</span>
+                </div>
+                <h1 className="text-3xl md:text-4xl font-bold">Preserve Your School Memories Forever</h1>
+                <p className="text-lg text-white/80">
+                  Create your digital yearbook entry and connect with classmates to share memories that last a lifetime.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <Button size="lg" variant="secondary" asChild>
+                    <Link to="/yearbook">
+                      <BookOpen className="mr-2 h-5 w-5" />
+                      View Yearbook
+                    </Link>
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="bg-white/10 hover:bg-white/20 text-white border-white/20"
+                    asChild
+                  >
+                    <Link to="/yearbook/new">
+                      <Plus className="mr-2 h-5 w-5" />
+                      Create Entry
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+              <div className="hidden md:flex items-center justify-center">
+                <div className="relative w-full max-w-sm">
+                  <div className="absolute inset-0 rounded-lg border-2 border-dashed border-white/30 -rotate-6"></div>
+                  <div className="absolute inset-0 rounded-lg border-2 border-dashed border-white/30 rotate-6"></div>
+                  <div className="relative bg-white/10 backdrop-blur-sm rounded-lg p-1 border border-white/30">
+                    <div className="aspect-[3/4] rounded-md overflow-hidden">
+                      <YearbookSlideshow />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
                         {/* Memory Gallery */}
                         <div className="lg:col-span-2 space-y-6">
@@ -383,7 +331,9 @@ export default function Dashboard() {
                                                 Reminiscence
                                             </CardTitle>
                                             <CardDescription className="mt-2">
-                                            Not just photos—snapshots of friendships, lessons, and dreams.
+                                                Not just photos—snapshots of
+                                                friendships, lessons, and
+                                                dreams.
                                             </CardDescription>
                                         </div>
                                         <Button
@@ -393,12 +343,13 @@ export default function Dashboard() {
                                             asChild
                                         >
                                             <Link to="/montage">
-                                                View all <ChevronRight className="h-3 w-3" />
+                                                View all{" "}
+                                                <ChevronRight className="h-3 w-3" />
                                             </Link>
                                         </Button>
                                     </div>
                                 </CardHeader>
-                                
+
                                 <CardContent>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                         {[
@@ -407,43 +358,43 @@ export default function Dashboard() {
                                                 title: "Graduation Day",
                                                 image: "https://placehold.co/300x200/7438dd/ffffff?text=Graduation",
                                                 likes: 24,
-                                                year: "2024"
+                                                year: "2024",
                                             },
                                             {
                                                 id: 2,
                                                 title: "Spring Break",
                                                 image: "https://placehold.co/300x200/38dd74/ffffff?text=Spring+Break",
                                                 likes: 18,
-                                                year: "2024"
+                                                year: "2024",
                                             },
                                             {
                                                 id: 3,
                                                 title: "Science Fair",
                                                 image: "https://placehold.co/300x200/dd7438/ffffff?text=Science+Fair",
                                                 likes: 12,
-                                                year: "2023"
+                                                year: "2023",
                                             },
                                             {
                                                 id: 4,
                                                 title: "Sports Day",
                                                 image: "https://placehold.co/300x200/dd3874/ffffff?text=Sports+Day",
                                                 likes: 32,
-                                                year: "2023"
+                                                year: "2023",
                                             },
                                             {
                                                 id: 5,
                                                 title: "Prom Night",
                                                 image: "https://placehold.co/300x200/3874dd/ffffff?text=Prom+Night",
                                                 likes: 45,
-                                                year: "2024"
+                                                year: "2024",
                                             },
                                             {
                                                 id: 6,
                                                 title: "Field Trip",
                                                 image: "https://placehold.co/300x200/74dd38/ffffff?text=Field+Trip",
                                                 likes: 16,
-                                                year: "2023"
-                                            }
+                                                year: "2023",
+                                            },
                                         ].map((memory) => (
                                             <Link
                                                 to={`/memories/${memory.id}`}
@@ -465,13 +416,17 @@ export default function Dashboard() {
                                                                 <div className="flex items-center gap-1">
                                                                     <Clock className="h-3 w-3 text-white/70" />
                                                                     <span className="text-xs text-white/70">
-                                                                        {memory.year}
+                                                                        {
+                                                                            memory.year
+                                                                        }
                                                                     </span>
                                                                 </div>
                                                                 <div className="flex items-center gap-1">
                                                                     <Heart className="h-3 w-3 text-white/70" />
                                                                     <span className="text-xs text-white/70">
-                                                                        {memory.likes}
+                                                                        {
+                                                                            memory.likes
+                                                                        }
                                                                     </span>
                                                                 </div>
                                                             </div>
@@ -484,7 +439,7 @@ export default function Dashboard() {
                                 </CardContent>
                             </Card>
                         </div>
-                        
+
                         {/* Right Sidebar */}
                         <div className="space-y-6">
                             {/* Recent Messages */}
@@ -507,7 +462,8 @@ export default function Dashboard() {
                                             asChild
                                         >
                                             <Link to="/messages">
-                                                View all <ChevronRight className="h-3 w-3" />
+                                                View all{" "}
+                                                <ChevronRight className="h-3 w-3" />
                                             </Link>
                                         </Button>
                                     </div>
@@ -519,40 +475,54 @@ export default function Dashboard() {
                                         </div>
                                     ) : messages && messages.length > 0 ? (
                                         <div className="space-y-3">
-                                            {messages.slice(0, 3).map((message, i) => (
-                                                <div
-                                                    key={i}
-                                                    className="flex items-start gap-3 rounded-lg p-3 transition-colors hover:bg-muted/50"
-                                                >
-                                                    <Avatar>
-                                                        <AvatarFallback>
-                                                            {getInitials(message?.sender || "Anonymous")}
-                                                        </AvatarFallback>
-                                                    </Avatar>
-                                                    <div className="flex-1 space-y-1">
-                                                        <div className="flex items-center justify-between">
-                                                            <p className="text-sm font-medium">
-                                                                {typeof message?.sender === "object"
-                                                                    ? message?.sender?.name
-                                                                    : message?.sender || "Anonymous"}
+                                            {messages
+                                                .slice(0, 3)
+                                                .map((message, i) => (
+                                                    <div
+                                                        key={i}
+                                                        className="flex items-start gap-3 rounded-lg p-3 transition-colors hover:bg-muted/50"
+                                                    >
+                                                        <Avatar>
+                                                            <AvatarFallback>
+                                                                {getInitials(
+                                                                    message?.sender ||
+                                                                        "Anonymous"
+                                                                )}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                        <div className="flex-1 space-y-1">
+                                                            <div className="flex items-center justify-between">
+                                                                <p className="text-sm font-medium">
+                                                                    {typeof message?.sender ===
+                                                                    "object"
+                                                                        ? message
+                                                                              ?.sender
+                                                                              ?.name
+                                                                        : message?.sender ||
+                                                                          "Anonymous"}
+                                                                </p>
+                                                                <span className="text-xs text-muted-foreground">
+                                                                    {message?.date ||
+                                                                        "Recently"}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-sm text-muted-foreground line-clamp-2">
+                                                                {message?.content ||
+                                                                    "No message content"}
                                                             </p>
-                                                            <span className="text-xs text-muted-foreground">
-                                                                {message?.date || "Recently"}
-                                                            </span>
                                                         </div>
-                                                        <p className="text-sm text-muted-foreground line-clamp-2">
-                                                            {message?.content || "No message content"}
-                                                        </p>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                ))}
                                         </div>
                                     ) : (
                                         <div className="flex flex-col items-center justify-center py-8 text-center">
                                             <Mail className="h-8 w-8 text-muted-foreground mb-2" />
-                                            <h3 className="font-medium">No whispers yet</h3>
+                                            <h3 className="font-medium">
+                                                No whispers yet
+                                            </h3>
                                             <p className="text-sm text-muted-foreground mb-4">
-                                            Stay in touch with a gentle whisper—send a message!
+                                                Stay in touch with a gentle
+                                                whisper—send a message!
                                             </p>
                                             <Button asChild>
                                                 <Link to="/messages/new">
@@ -564,12 +534,8 @@ export default function Dashboard() {
                                     )}
                                 </CardContent>
                             </Card>
-                            
-
                         </div>
                     </div>
-
-
                 </main>
             </div>
         </div>
