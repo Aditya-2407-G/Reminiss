@@ -7,7 +7,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import { transformAndUpload } from "../utils/cloudinary.js";
 
 const createEntry = asyncHandler(async (req, res) => {
-  const { message, tags } = req.body;
+  const { message, activities, ambition, memories, messageToClassmates } = req.body;
   
   // Validate required fields
   if (!message) {
@@ -48,7 +48,10 @@ const createEntry = asyncHandler(async (req, res) => {
     user: req.user._id,
     imageUrl,
     message,
-    tags: tags ? JSON.parse(tags) : [],
+    activities: activities ? JSON.parse(activities) : [],
+    ambition,
+    memories,
+    messageToClassmates,
     batch: req.user.batch,
     college: userBatch.college,
     degree: userBatch.degree

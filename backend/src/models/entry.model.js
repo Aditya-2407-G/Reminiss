@@ -16,10 +16,22 @@ const entrySchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    tags: [{
+    activities: [{
       type: String,
       trim: true,
     }],
+    ambition: {
+      type: String,
+      trim: true,
+    },
+    memories: {
+      type: String,
+      trim: true,
+    },
+    messageToClassmates: {
+      type: String,
+      trim: true,
+    },
     batch: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Batch",
