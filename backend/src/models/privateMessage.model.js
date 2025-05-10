@@ -1,4 +1,4 @@
-import mongoose from "mongoose"
+import mongoose from "mongoose";
 
 const privateMessageSchema = new mongoose.Schema(
   {
@@ -22,31 +22,27 @@ const privateMessageSchema = new mongoose.Schema(
       ref: "Batch",
       required: true,
     },
-    isRead: {
-      type: Boolean,
-      default: false,
-    },
     isAnonymous: {
       type: Boolean,
       default: false,
     },
     anonymousThreadId: {
-      type: String,
-      default: null,
-      index: true,
+      type: mongoose.Schema.Types.ObjectId,
+      // This will be used to group anonymous messages into conversations
+      // It's set when an anonymous message is created or when replying to one
     },
-    isReplyToAnonymous: {
+    isRead: {
       type: Boolean,
       default: false,
     },
   },
-  { timestamps: true },
-)
+  {
+    timestamps: true,
+  }
+);
 
-// Indexes for faster querying
-privateMessageSchema.index({ recipient: 1, createdAt: -1 })
-privateMessageSchema.index({ sender: 1, recipient: 1 })
-privateMessageSchema.index({ batch: 1 })
-privateMessageSchema.index({ anonymousThreadId: 1 })
+// Index for efficient conversation queries
+privateMessageSchema.index({ sender: 1, recipient: 1, createdAt: -1 });
+privateMessageSchema.index({ anonymousThreadId: 1, createdAt: -1 });
 
-export const PrivateMessage = mongoose.model("PrivateMessage", privateMessageSchema)
+export const PrivateMessage = mongoose.model("PrivateMessage", privateMessageSchema);
